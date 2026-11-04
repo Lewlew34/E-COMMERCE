@@ -13,13 +13,20 @@ import {
   Laptop, 
   Smartphone, 
   Monitor, 
-  CheckCircle2
+  CheckCircle2,
+  Heart,
+  ShoppingCart
 } from 'lucide-react';
-import { MOCK_PRODUCTS, TECH_CATEGORIES, TECH_BRANDS } from '../../../../services/mockData/techProducts';
+import { productService } from '../../../../services/storageService';
 import { formatCurrencyVN } from '../../../../utils/format';
+import { useCart } from '../../../../contexts/CartContext';
+import { useWishlist } from '../../../../contexts/WishlistContext';
 
 export const CustomerHomePage: React.FC = () => {
-  // Flash Sale Countdown Timer (Giả lập còn 05 giờ 42 phút 18 giây)
+  const { addToCart } = useCart();
+  const { isInWishlist, toggleWishlist } = useWishlist();
+
+  // Flash Sale Countdown Timer
   const [timeLeft, setTimeLeft] = useState({ hours: 5, minutes: 42, seconds: 18 });
 
   useEffect(() => {
@@ -34,8 +41,12 @@ export const CustomerHomePage: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  const flashSaleProducts = MOCK_PRODUCTS.filter(p => p.isFlashSale);
-  const featuredProducts = MOCK_PRODUCTS.filter(p => p.isFeatured);
+  const allProducts = productService.getAll();
+  const categories = productService.getCategories();
+  const brands = productService.getBrands();
+
+  const flashSaleProducts = allProducts.filter(p => p.isFlashSale);
+  const featuredProducts = allProducts.filter(p => p.isFeatured);
 
   return (
     <div className="space-y-10 pb-12">
@@ -72,48 +83,47 @@ export const CustomerHomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Decorative graphic background element */}
           <div className="absolute right-0 bottom-0 top-0 w-1/2 opacity-20 lg:opacity-40 pointer-events-none flex items-center justify-center">
             <Cpu className="w-96 h-96 text-blue-500" />
           </div>
         </div>
       </section>
 
-      {/* 2. Value Proposition Badges */}
+      {/* 2. Value Propositions Grid */}
       <section className="max-w-7xl mx-auto px-4">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 p-5 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
               <ShieldCheck className="w-5 h-5" />
             </div>
             <div>
               <div className="text-xs font-bold text-slate-900">100% Chính Hãng</div>
-              <div className="text-[11px] text-slate-500">Bảo hành tại TTBH ủy quyền</div>
+              <div className="text-[11px] text-slate-500">Phân phối ủy quyền tại VN</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
               <Truck className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900">Giao Nhanh 2H</div>
-              <div className="text-[11px] text-slate-500">Đóng gói chuẩn chống sốc</div>
+              <div className="text-xs font-bold text-slate-900">Giao Hỏa Tốc 2H</div>
+              <div className="text-[11px] text-slate-500">Miễn phí cho đơn từ 500k</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-900">Đổi Trả 30 Ngày</div>
-              <div className="text-[11px] text-slate-500">Lỗi là đổi mới tức thì</div>
+              <div className="text-xs font-bold text-slate-900">1 Đổi 1 Trong 30 Ngày</div>
+              <div className="text-[11px] text-slate-500">Nếu phát sinh lỗi từ nhà SX</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-3 p-4 rounded-2xl bg-white border border-slate-200/80 shadow-xs">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
               <Headphones className="w-5 h-5" />
             </div>
             <div>
@@ -132,29 +142,28 @@ export const CustomerHomePage: React.FC = () => {
             Danh Mục Thiết Bị Công Nghệ
           </h2>
           <Link to="/catalog" className="text-xs text-blue-600 font-bold hover:underline">
-            Xem tất cả ({TECH_CATEGORIES.length}) →
+            Xem tất cả ({categories.length}) →
           </Link>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
-          {TECH_CATEGORIES.map((cat) => (
+          {categories.map((cat) => (
             <Link
               key={cat.id}
-              to={`/catalog?cat=${cat.key}`}
+              to={`/catalog?cat=${cat.slug}`}
               className="p-4 rounded-2xl bg-white border border-slate-200/80 hover:border-blue-500/50 hover:shadow-lg transition-all group text-left"
             >
               <div className="w-11 h-11 rounded-xl bg-slate-100 group-hover:bg-blue-600 group-hover:text-white text-slate-700 flex items-center justify-center transition-colors mb-3">
-                {cat.key === 'laptop' && <Laptop className="w-5 h-5" />}
-                {cat.key === 'phone' && <Smartphone className="w-5 h-5" />}
-                {cat.key === 'pc-component' && <Cpu className="w-5 h-5" />}
-                {cat.key === 'monitor' && <Monitor className="w-5 h-5" />}
-                {cat.key === 'accessory' && <Headphones className="w-5 h-5" />}
+                {cat.slug === 'laptop' && <Laptop className="w-5 h-5" />}
+                {cat.slug === 'phone' && <Smartphone className="w-5 h-5" />}
+                {cat.slug === 'pc-component' && <Cpu className="w-5 h-5" />}
+                {cat.slug === 'monitor' && <Monitor className="w-5 h-5" />}
+                {cat.slug === 'accessory' && <Headphones className="w-5 h-5" />}
               </div>
               <h3 className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
                 {cat.name}
               </h3>
               <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">{cat.description}</p>
-              <div className="mt-2 text-[10px] text-blue-600 font-semibold">{cat.productCount}+ sản phẩm</div>
             </Link>
           ))}
         </div>
@@ -163,7 +172,6 @@ export const CustomerHomePage: React.FC = () => {
       {/* 4. Flash Sale Tech Section */}
       <section className="max-w-7xl mx-auto px-4">
         <div className="rounded-3xl bg-gradient-to-r from-red-600 via-rose-600 to-orange-600 p-6 text-white shadow-xl">
-          {/* Flash Sale Header */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-white/20">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white text-red-600 rounded-xl shadow-md">
@@ -177,7 +185,6 @@ export const CustomerHomePage: React.FC = () => {
               </div>
             </div>
 
-            {/* Countdown timer */}
             <div className="flex items-center gap-2 text-xs font-bold">
               <span className="text-rose-100">KẾT THÚC TRONG:</span>
               <div className="flex items-center gap-1">
@@ -196,63 +203,58 @@ export const CustomerHomePage: React.FC = () => {
             </div>
           </div>
 
-          {/* Flash Sale Product Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {flashSaleProducts.map((p) => (
-              <div
-                key={p.id}
-                className="bg-white rounded-2xl p-4 text-slate-800 shadow-md flex flex-col justify-between hover:scale-[1.02] transition-transform"
-              >
-                <div>
-                  <div className="relative rounded-xl overflow-hidden mb-3 aspect-video bg-slate-100">
-                    <img src={p.thumbnail} alt={p.name} className="w-full h-full object-cover" />
-                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shadow">
-                      -{p.discountPercentage}%
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-400 font-semibold uppercase">{p.brand}</div>
-                  <h3 className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 hover:text-blue-600">
-                    {p.name}
-                  </h3>
+            {flashSaleProducts.map((p) => {
+              const v = p.variants[0];
+              const discountPercent = v?.compareAtPrice && v.compareAtPrice > v.price
+                ? Math.round(((v.compareAtPrice - v.price) / v.compareAtPrice) * 100)
+                : 15;
 
-                  {/* Tech Specs Badges */}
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {p.specifications.cpu && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-medium truncate max-w-[150px]">
-                        {p.specifications.cpu}
+              return (
+                <div
+                  key={p.id}
+                  className="bg-white rounded-2xl p-4 text-slate-800 shadow-md flex flex-col justify-between hover:scale-[1.02] transition-transform"
+                >
+                  <div>
+                    <div className="relative rounded-xl overflow-hidden mb-3 aspect-video bg-slate-100">
+                      <img src={v?.image || ''} alt={p.name} className="w-full h-full object-cover" />
+                      <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-600 text-white text-[11px] font-black uppercase tracking-wider shadow">
+                        -{discountPercent}%
                       </span>
-                    )}
-                    {p.specifications.gpu && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-medium truncate max-w-[150px]">
-                        {p.specifications.gpu}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-base font-black text-red-600">
-                      {formatCurrencyVN(p.price)}
-                    </span>
-                    <span className="text-xs text-slate-400 line-through">
-                      {formatCurrencyVN(p.originalPrice)}
-                    </span>
-                  </div>
-
-                  {/* Progress bar sold */}
-                  <div className="mt-2">
-                    <div className="flex justify-between text-[10px] text-slate-500 font-medium mb-1">
-                      <span>Đã bán {p.soldCount}</span>
-                      <span className="text-red-500 font-bold">Còn {p.stock} suất</span>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
-                      <div className="h-full bg-red-500 rounded-full" style={{ width: '82%' }}></div>
+                    <div className="text-[11px] text-slate-400 font-semibold uppercase">{p.brand?.name}</div>
+                    <Link
+                      to={`/product/${p.id}`}
+                      className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 hover:text-blue-600 block"
+                    >
+                      {p.name}
+                    </Link>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-base font-black text-red-600">
+                        {formatCurrencyVN(v?.price || 0)}
+                      </span>
+                      {v?.compareAtPrice && (
+                        <span className="text-xs text-slate-400 line-through">
+                          {formatCurrencyVN(v.compareAtPrice)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <Link
+                        to={`/product/${p.id}`}
+                        className="flex-1 py-2 text-center rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-xs"
+                      >
+                        Săn ngay
+                      </Link>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -267,85 +269,92 @@ export const CustomerHomePage: React.FC = () => {
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">Top thiết bị cấu hình mạnh, bảo hành chính hãng</p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 font-medium">Lọc nhanh:</span>
-            <span className="px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">Tất cả</span>
-            <span className="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer">Laptop i9/RTX</span>
-            <span className="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium cursor-pointer">iPhone 16</span>
-          </div>
+          <Link to="/catalog" className="text-xs font-bold text-blue-600 hover:underline">
+            Xem toàn bộ sản phẩm →
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {featuredProducts.map((p) => (
-            <div
-              key={p.id}
-              className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-500/60 p-4 flex flex-col justify-between hover:shadow-xl transition-all group"
-            >
-              <div>
-                <div className="relative rounded-xl overflow-hidden mb-3 aspect-square bg-slate-50">
-                  <img src={p.thumbnail} alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                  {p.discountPercentage > 0 && (
-                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-red-600 text-white text-[11px] font-bold">
-                      -{p.discountPercentage}%
-                    </span>
-                  )}
-                  <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Chính hãng
-                  </span>
-                </div>
+          {featuredProducts.map((p) => {
+            const v = p.variants[0];
+            const isFav = isInWishlist(p.id);
 
-                <div className="text-[11px] text-blue-600 font-bold uppercase">{p.brand}</div>
-                <h3 className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 group-hover:text-blue-600 transition-colors">
-                  {p.name}
-                </h3>
-
-                {/* Technical specs pill list */}
-                <div className="mt-2.5 space-y-1 text-[11px] text-slate-600 bg-slate-50 p-2 rounded-xl">
-                  {p.specifications.cpu && (
-                    <div className="truncate"><strong className="text-slate-800">CPU:</strong> {p.specifications.cpu}</div>
-                  )}
-                  {p.specifications.ram && (
-                    <div className="truncate"><strong className="text-slate-800">RAM:</strong> {p.specifications.ram}</div>
-                  )}
-                  {p.specifications.gpu && (
-                    <div className="truncate"><strong className="text-slate-800">VGA:</strong> {p.specifications.gpu}</div>
-                  )}
-                  {p.specifications.screen && (
-                    <div className="truncate"><strong className="text-slate-800">Màn hình:</strong> {p.specifications.screen}</div>
-                  )}
-                </div>
-
-                {/* Rating */}
-                <div className="flex items-center gap-1.5 mt-2.5">
-                  <div className="flex items-center text-amber-400">
-                    <Star className="w-3.5 h-3.5 fill-amber-400" />
-                    <span className="text-xs font-bold text-slate-800 ml-1">{p.rating}</span>
-                  </div>
-                  <span className="text-[11px] text-slate-400">({p.reviewCount} đánh giá)</span>
-                </div>
-              </div>
-
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+            return (
+              <div
+                key={p.id}
+                className="bg-white rounded-2xl border border-slate-200/90 hover:border-blue-500/60 p-4 flex flex-col justify-between hover:shadow-xl transition-all group"
+              >
                 <div>
-                  <div className="text-sm font-black text-blue-600">
-                    {formatCurrencyVN(p.price)}
+                  <div className="relative rounded-xl overflow-hidden mb-3 aspect-square bg-slate-50">
+                    <img
+                      src={v?.image || ''}
+                      alt={p.name}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <button
+                      onClick={() => toggleWishlist(p.id, p.name)}
+                      className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-colors shadow ${
+                        isFav ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-500 hover:text-red-500 hover:bg-white'
+                      }`}
+                      title={isFav ? 'Bỏ yêu thích' : 'Lưu yêu thích'}
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
+                    </button>
+                    <span className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Chính hãng
+                    </span>
                   </div>
-                  {p.discountPercentage > 0 && (
-                    <div className="text-[10px] text-slate-400 line-through">
-                      {formatCurrencyVN(p.originalPrice)}
+
+                  <div className="text-[11px] text-blue-600 font-bold uppercase">{p.brand?.name}</div>
+                  <Link
+                    to={`/product/${p.id}`}
+                    className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 group-hover:text-blue-600 transition-colors block"
+                  >
+                    {p.name}
+                  </Link>
+
+                  {/* Rating */}
+                  <div className="flex items-center gap-1.5 mt-2.5">
+                    <div className="flex items-center text-amber-400">
+                      <Star className="w-3.5 h-3.5 fill-amber-400" />
+                      <span className="text-xs font-bold text-slate-800 ml-1">{p.rating || 5.0}</span>
                     </div>
-                  )}
+                    <span className="text-[11px] text-slate-400">({p.reviewCount || 99} đánh giá)</span>
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white font-bold text-xs transition-colors cursor-pointer"
-                >
-                  Mua ngay
-                </button>
+                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-black text-blue-600">
+                      {formatCurrencyVN(v?.price || 0)}
+                    </div>
+                    {v?.compareAtPrice && (
+                      <div className="text-[10px] text-slate-400 line-through">
+                        {formatCurrencyVN(v.compareAtPrice)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => v && addToCart(v.id, 1)}
+                      className="p-2 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white transition-colors cursor-pointer"
+                      title="Thêm vào giỏ hàng"
+                    >
+                      <ShoppingCart className="w-4 h-4" />
+                    </button>
+                    <Link
+                      to={`/product/${p.id}`}
+                      className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
+                    >
+                      Chi tiết
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
@@ -359,10 +368,11 @@ export const CustomerHomePage: React.FC = () => {
             <p className="text-xs text-slate-500 mt-1">Đối tác phân phối trực tiếp và bảo hành chính hãng</p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-4">
-            {TECH_BRANDS.map((brand) => (
-              <div
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-4">
+            {brands.map((brand) => (
+              <Link
                 key={brand.id}
+                to={`/catalog?q=${encodeURIComponent(brand.name)}`}
                 className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-100 hover:border-blue-400 hover:shadow-md transition-all group"
               >
                 <img
@@ -373,7 +383,7 @@ export const CustomerHomePage: React.FC = () => {
                 <span className="text-xs font-bold text-slate-700 group-hover:text-blue-600">
                   {brand.name}
                 </span>
-              </div>
+              </Link>
             ))}
           </div>
         </div>

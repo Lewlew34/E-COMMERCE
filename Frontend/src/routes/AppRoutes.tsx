@@ -15,7 +15,12 @@ import { RegisterSellerPage } from '../modules/auth/pages/RegisterSellerPage';
 // Customer Pages
 import { CustomerHomePage } from '../modules/customer/home/pages/CustomerHomePage';
 import { CatalogPage } from '../modules/customer/catalog/pages/CatalogPage';
+import { ProductDetailPage } from '../modules/customer/product/pages/ProductDetailPage';
 import { CartPage } from '../modules/customer/cart/pages/CartPage';
+import { CheckoutPage } from '../modules/customer/checkout/pages/CheckoutPage';
+import { OrderSuccessPage } from '../modules/customer/orders/pages/OrderSuccessPage';
+import { CustomerOrdersPage } from '../modules/customer/orders/pages/CustomerOrdersPage';
+import { WishlistPage } from '../modules/customer/wishlist/pages/WishlistPage';
 
 // Admin Pages
 import { AdminDashboardPage } from '../modules/admin/dashboard/pages/AdminDashboardPage';
@@ -24,6 +29,7 @@ import { AdminUsersPage } from '../modules/admin/users/pages/AdminUsersPage';
 // Seller Pages
 import { SellerDashboardPage } from '../modules/seller/dashboard/pages/SellerDashboardPage';
 import { SellerProductsPage } from '../modules/seller/products/pages/SellerProductsPage';
+import { SellerOrdersPage } from '../modules/seller/orders/pages/SellerOrdersPage';
 
 // Route Guards
 import { ProtectedRoute } from './ProtectedRoute';
@@ -35,7 +41,12 @@ export const AppRoutes: React.FC = () => {
       <Route path="/" element={<CustomerLayout />}>
         <Route index element={<CustomerHomePage />} />
         <Route path="catalog" element={<CatalogPage />} />
+        <Route path="product/:id" element={<ProductDetailPage />} />
         <Route path="cart" element={<CartPage />} />
+        <Route path="checkout" element={<CheckoutPage />} />
+        <Route path="order-success/:code" element={<OrderSuccessPage />} />
+        <Route path="customer/orders" element={<CustomerOrdersPage />} />
+        <Route path="wishlist" element={<WishlistPage />} />
       </Route>
 
       {/* 2. XÁC THỰC (AUTH ROUTES) */}
@@ -63,7 +74,7 @@ export const AppRoutes: React.FC = () => {
           <Route index element={<Navigate to="/seller/dashboard" replace />} />
           <Route path="dashboard" element={<SellerDashboardPage />} />
           <Route path="products" element={<SellerProductsPage />} />
-          <Route path="orders" element={<SellerDashboardPage />} />
+          <Route path="orders" element={<SellerOrdersPage />} />
           <Route path="analytics" element={<SellerDashboardPage />} />
         </Route>
       </Route>
