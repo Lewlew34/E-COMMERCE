@@ -113,6 +113,55 @@ export const productService = {
     const products = getStored<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
     const filtered = products.filter(p => p.id !== id);
     setStored(STORAGE_KEYS.PRODUCTS, filtered);
+  },
+
+  updateProductFlashSale(
+    productId: number,
+    config: {
+      isFlashSale: boolean;
+      originalPrice?: number;
+      discountPercent?: number;
+      flashSalePrice?: number;
+      startTime?: string;
+      endTime?: string;
+    }
+  ): void {
+    const products = getStored<Product[]>(STORAGE_KEYS.PRODUCTS, INITIAL_PRODUCTS);
+    const index = products.findIndex(p => p.id === productId);
+    if (index >= 0) {
+      const p = { ...products[index] };
+      p.isFlashSale = config.isFlashSale;
+      p.flashSaleOriginalPrice = config.originalPrice;
+      p.flashSaleDiscountPercent = config.discountPercent;
+      p.flashSalePrice = config.flashSalePrice;
+      p.flashSaleStartTime = config.startTime;
+      p.flashSaleEndTime = config.endTime;
+
+      // Sync primary variant prices
+      if (p.variants && p.variants.length > 0) {
+        p.variants = p.variants.map((v, idx) => {
+          if (idx === 0) {
+            if (config.isFlashSale && config.flashSalePrice && config.originalPrice) {
+              return {
+                ...v,
+                price: config.flashSalePrice,
+                compareAtPrice: config.originalPrice
+              };
+            } else if (!config.isFlashSale && config.originalPrice) {
+              return {
+                ...v,
+                price: config.originalPrice,
+                compareAtPrice: undefined
+              };
+            }
+          }
+          return v;
+        });
+      }
+
+      products[index] = p;
+      setStored(STORAGE_KEYS.PRODUCTS, products);
+    }
   }
 };
 

@@ -60,9 +60,11 @@ export const ProductDetailPage: React.FC = () => {
   }
 
   const isFavorite = isInWishlist(product.id);
-  const discountPercent = selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price
-    ? Math.round(((selectedVariant.compareAtPrice - selectedVariant.price) / selectedVariant.compareAtPrice) * 100)
-    : 0;
+  const discountPercent = product.flashSaleDiscountPercent || (
+    selectedVariant.compareAtPrice && selectedVariant.compareAtPrice > selectedVariant.price
+      ? Math.round(((selectedVariant.compareAtPrice - selectedVariant.price) / selectedVariant.compareAtPrice) * 100)
+      : 0
+  );
 
   const handleVariantChange = (variant: ProductVariant) => {
     setSelectedVariant(variant);
@@ -226,9 +228,16 @@ export const ProductDetailPage: React.FC = () => {
               </div>
 
               {product.isFlashSale && (
-                <div className="flex items-center gap-2 bg-red-600/80 px-3 py-1.5 rounded-xl border border-red-500 text-xs font-bold text-white shadow-inner animate-pulse">
-                  <Zap className="w-4 h-4 fill-current" />
-                  <span>FLASH SALE GIỜ VÀNG</span>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-2 bg-red-600/90 px-3 py-1.5 rounded-xl border border-red-500 text-xs font-bold text-white shadow-inner animate-pulse">
+                    <Zap className="w-4 h-4 fill-current" />
+                    <span>FLASH SALE GIỜ VÀNG {discountPercent > 0 ? `(-${discountPercent}%)` : ''}</span>
+                  </div>
+                  {product.flashSaleEndTime && (
+                    <div className="text-[10px] text-rose-300 font-mono">
+                      Hạn: {new Date(product.flashSaleEndTime).toLocaleString('vi-VN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

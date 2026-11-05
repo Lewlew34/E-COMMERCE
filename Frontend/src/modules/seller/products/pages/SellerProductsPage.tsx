@@ -1,9 +1,47 @@
 import React, { useState } from 'react';
-import { Package, PlusCircle, Trash2, Tag, Layers, Cpu } from 'lucide-react';
+import { 
+  Package, 
+  PlusCircle, 
+  Trash2, 
+  Tag, 
+  Layers, 
+  Cpu, 
+  Zap, 
+  Flame, 
+  Clock, 
+  Calendar, 
+  Sliders, 
+  Percent, 
+  Sparkles, 
+  X
+} from 'lucide-react';
 import { productService } from '../../../../services/storageService';
 import type { Product } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
+
+// Helper formats date for datetime-local input
+const toDateTimeLocal = (date: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const y = date.getFullYear();
+  const m = pad(date.getMonth() + 1);
+  const d = pad(date.getDate());
+  const h = pad(date.getHours());
+  const min = pad(date.getMinutes());
+  return `${y}-${m}-${d}T${h}:${min}`;
+};
+
+const formatDisplayDate = (dateStr?: string): string => {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+};
 
 export const SellerProductsPage: React.FC = () => {
   const [products, setProducts] = useState<Product[]>(productService.getAll());
@@ -12,6 +50,15 @@ export const SellerProductsPage: React.FC = () => {
 
   const brands = productService.getBrands();
   const categories = productService.getCategories();
+
+  // Flash Sale Modal states
+  const [flashSaleModalOpen, setFlashSaleModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
+  const [fsEnabled, setFsEnabled] = useState(true);
+  const [fsOriginalPrice, setFsOriginalPrice] = useState<number>(0);
+  const [fsDiscountPercent, setFsDiscountPercent] = useState<number>(20);
+  const [fsStartTime, setFsStartTime] = useState<string>('');
+  const [fsEndTime, setFsEndTime] = useState<string>('');
 
   // New product form states
   const [name, setName] = useState('');
@@ -24,6 +71,9 @@ export const SellerProductsPage: React.FC = () => {
   const [stock, setStock] = useState<number>(10);
   const [variantAttr, setVariantAttr] = useState('Tiêu chuẩn');
   const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800');
+
+  // Currently selected product for Flash Sale modal
+  const targetProduct = products.find(p => p.id === selectedProductId) || products[0];
 
   const handleDelete = (id: number) => {
     productService.deleteProduct(id);
@@ -78,23 +128,154 @@ export const SellerProductsPage: React.FC = () => {
     setSku('');
   };
 
+  // Open Flash Sale Modal for a specific product
+  const openFlashSaleModal = (p: Product) => {
+    setSelectedProductId(p.id);
+    setFsEnabled(p.isFlashSale ?? true);
+    
+    // Set base price
+    const currentPrice = p.variants[0]?.price || 10000000;
+    const currentCompare = p.variants[0]?.compareAtPrice;
+    const initialOriginal = p.flashSaleOriginalPrice || currentCompare || currentPrice;
+    setFsOriginalPrice(initialOriginal);
+
+    // Set discount %
+    const initialDiscount = p.flashSaleDiscountPercent ?? (
+      currentCompare && currentCompare > currentPrice
+        ? Math.round(((currentCompare - currentPrice) / currentCompare) * 100)
+        : 20
+    );
+    setFsDiscountPercent(initialDiscount > 0 ? initialDiscount : 20);
+
+    // Set times
+    const now = new Date();
+    const defaultStart = p.flashSaleStartTime || toDateTimeLocal(now);
+    const defaultEnd = p.flashSaleEndTime || toDateTimeLocal(new Date(now.getTime() + 48 * 3600 * 1000));
+    setFsStartTime(defaultStart);
+    setFsEndTime(defaultEnd);
+
+    setFlashSaleModalOpen(true);
+  };
+
+  // Change product inside modal
+  const handleSelectProductInModal = (prodId: number) => {
+    const prod = products.find(p => p.id === prodId);
+    if (!prod) return;
+    setSelectedProductId(prodId);
+    setFsEnabled(prod.isFlashSale ?? true);
+
+    const currentPrice = prod.variants[0]?.price || 10000000;
+    const currentCompare = prod.variants[0]?.compareAtPrice;
+    const initialOriginal = prod.flashSaleOriginalPrice || currentCompare || currentPrice;
+    setFsOriginalPrice(initialOriginal);
+
+    const initialDiscount = prod.flashSaleDiscountPercent ?? (
+      currentCompare && currentCompare > currentPrice
+        ? Math.round(((currentCompare - currentPrice) / currentCompare) * 100)
+        : 20
+    );
+    setFsDiscountPercent(initialDiscount > 0 ? initialDiscount : 20);
+
+    const now = new Date();
+    setFsStartTime(prod.flashSaleStartTime || toDateTimeLocal(now));
+    setFsEndTime(prod.flashSaleEndTime || toDateTimeLocal(new Date(now.getTime() + 48 * 3600 * 1000)));
+  };
+
+  // Calculate discounted Flash Sale price
+  const computedFlashSalePrice = Math.round(fsOriginalPrice * (1 - fsDiscountPercent / 100));
+  const computedSavings = fsOriginalPrice - computedFlashSalePrice;
+
+  // Save Flash Sale settings
+  const handleSaveFlashSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProductId) return;
+
+    if (fsEnabled) {
+      if (fsOriginalPrice <= 0) {
+        showToast('Vui lòng nhập giá gốc lớn hơn 0!', 'error');
+        return;
+      }
+      if (fsDiscountPercent < 1 || fsDiscountPercent > 99) {
+        showToast('Phần trăm giảm giá phải từ 1% đến 99%!', 'error');
+        return;
+      }
+      if (fsStartTime && fsEndTime && new Date(fsEndTime) <= new Date(fsStartTime)) {
+        showToast('Thời gian kết thúc phải diễn ra sau thời gian bắt đầu!', 'error');
+        return;
+      }
+    }
+
+    productService.updateProductFlashSale(selectedProductId, {
+      isFlashSale: fsEnabled,
+      originalPrice: fsOriginalPrice,
+      discountPercent: fsDiscountPercent,
+      flashSalePrice: computedFlashSalePrice,
+      startTime: fsStartTime,
+      endTime: fsEndTime
+    });
+
+    setProducts(productService.getAll());
+    setFlashSaleModalOpen(false);
+
+    if (fsEnabled) {
+      showToast(`Đã bật Flash Sale (-${fsDiscountPercent}%) cho "${targetProduct?.name}"!`, 'success');
+    } else {
+      showToast(`Đã tắt Flash Sale cho "${targetProduct?.name}"!`, 'info');
+    }
+  };
+
+  // Quick turn off Flash Sale
+  const handleDisableFlashSale = () => {
+    if (!selectedProductId) return;
+    productService.updateProductFlashSale(selectedProductId, {
+      isFlashSale: false,
+      originalPrice: fsOriginalPrice
+    });
+    setProducts(productService.getAll());
+    setFlashSaleModalOpen(false);
+    showToast(`Đã gỡ sản phẩm khỏi chương trình Flash Sale!`, 'info');
+  };
+
+  // Quick preset duration adder
+  const handleSetDurationHours = (hours: number) => {
+    const start = fsStartTime ? new Date(fsStartTime) : new Date();
+    const end = new Date(start.getTime() + hours * 3600 * 1000);
+    setFsEndTime(toDateTimeLocal(end));
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      {/* 1. Header & Actions */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-emerald-600" /> Quản Lý Sản Phẩm & Biến Thể Kho
+            <Package className="w-5 h-5 text-emerald-600" /> Quản Lý Sản Phẩm & Chương Trình Flash Sale
           </h1>
-          <p className="text-xs text-slate-500 mt-0.5">Danh sách thiết bị công nghệ và số lượng tồn kho theo từng biến thể (SKU)</p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Theo dõi tồn kho SKU, cài đặt giá gốc, phần trăm giảm giá và khung giờ Flash Sale trực tiếp cho từng thiết bị
+          </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
-        >
-          <PlusCircle className="w-4 h-4" /> Thêm sản phẩm mới
-        </button>
+
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => {
+              if (products.length > 0) openFlashSaleModal(products[0]);
+            }}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <Flame className="w-4 h-4 fill-white" /> Thiết lập Flash Sale
+          </button>
+
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" /> Thêm sản phẩm mới
+          </button>
+        </div>
       </div>
 
+      {/* 2. Main Products Table */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-700">
@@ -105,6 +286,9 @@ export const SellerProductsPage: React.FC = () => {
                 <th className="py-2.5 px-3">Các Biến Thể & SKU</th>
                 <th className="py-2.5 px-3">Kho Tồn</th>
                 <th className="py-2.5 px-3">Đã Bán</th>
+                <th className="py-2.5 px-3 min-w-[210px] bg-rose-50/50 text-rose-800 font-bold">
+                  ⚡ Flash Sale (Khuyến Mãi)
+                </th>
                 <th className="py-2.5 px-3 text-right">Thao Tác</th>
               </tr>
             </thead>
@@ -112,20 +296,52 @@ export const SellerProductsPage: React.FC = () => {
               {products.map(p => {
                 const totalStock = p.variants.reduce((sum, v) => sum + v.stockQuantity, 0);
 
+                // Flash sale logic for current row
+                const isFlashSale = Boolean(p.isFlashSale);
+                const discount = p.flashSaleDiscountPercent ?? (
+                  p.variants[0]?.compareAtPrice && p.variants[0].compareAtPrice > p.variants[0].price
+                    ? Math.round(((p.variants[0].compareAtPrice - p.variants[0].price) / p.variants[0].compareAtPrice) * 100)
+                    : 0
+                );
+                const origPrice = p.flashSaleOriginalPrice ?? (p.variants[0]?.compareAtPrice || p.variants[0]?.price || 0);
+                const fPrice = p.flashSalePrice ?? (
+                  discount > 0 ? Math.round(origPrice * (1 - discount / 100)) : p.variants[0]?.price || 0
+                );
+
+                // Compute status based on time
+                let statusBadge: 'active' | 'upcoming' | 'ended' | 'off' = 'off';
+                if (isFlashSale) {
+                  const now = Date.now();
+                  const startMs = p.flashSaleStartTime ? new Date(p.flashSaleStartTime).getTime() : 0;
+                  const endMs = p.flashSaleEndTime ? new Date(p.flashSaleEndTime).getTime() : Infinity;
+
+                  if (p.flashSaleStartTime && now < startMs) {
+                    statusBadge = 'upcoming';
+                  } else if (p.flashSaleEndTime && now > endMs) {
+                    statusBadge = 'ended';
+                  } else {
+                    statusBadge = 'active';
+                  }
+                }
+
                 return (
-                  <tr key={p.id} className="hover:bg-slate-50/60">
-                    <td className="py-3 px-3 flex items-center gap-3">
-                      <img
-                        src={p.variants[0]?.image || ''}
-                        alt=""
-                        className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
-                      />
-                      <div>
-                        <div className="font-bold text-slate-900 line-clamp-1">{p.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">ID: #{p.id}</div>
+                  <tr key={p.id} className="hover:bg-slate-50/60 transition-colors">
+                    {/* 1. Device Info */}
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-3">
+                        <img
+                          src={p.variants[0]?.image || ''}
+                          alt=""
+                          className="w-12 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
+                        />
+                        <div>
+                          <div className="font-bold text-slate-900 line-clamp-1">{p.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">ID: #{p.id}</div>
+                        </div>
                       </div>
                     </td>
 
+                    {/* 2. Category & Brand */}
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1 text-slate-800 font-medium">
                         <Layers className="w-3.5 h-3.5 text-blue-500" />
@@ -134,6 +350,7 @@ export const SellerProductsPage: React.FC = () => {
                       <div className="text-[10px] text-slate-400 font-semibold">{p.brand?.name}</div>
                     </td>
 
+                    {/* 3. Variants */}
                     <td className="py-3 px-3">
                       <div className="space-y-1">
                         {p.variants.map(v => (
@@ -148,6 +365,7 @@ export const SellerProductsPage: React.FC = () => {
                       </div>
                     </td>
 
+                    {/* 4. Stock */}
                     <td className="py-3 px-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         totalStock < 10 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
@@ -156,8 +374,79 @@ export const SellerProductsPage: React.FC = () => {
                       </span>
                     </td>
 
+                    {/* 5. Sold */}
                     <td className="py-3 px-3 text-slate-800 font-bold">{p.soldCount || 0}</td>
 
+                    {/* 6. Flash Sale Column */}
+                    <td className="py-3 px-3 bg-rose-50/20">
+                      {isFlashSale ? (
+                        <div className="space-y-1.5">
+                          {/* Status Badge */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {statusBadge === 'active' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500 text-white shadow-xs">
+                                <Flame className="w-3 h-3 fill-white" /> Đang Sale (-{discount}%)
+                              </span>
+                            )}
+                            {statusBadge === 'upcoming' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                <Clock className="w-3 h-3" /> Sắp diễn ra (-{discount}%)
+                              </span>
+                            )}
+                            {statusBadge === 'ended' && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+                                <Clock className="w-3 h-3" /> Đã kết thúc
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Prices */}
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-xs font-black text-rose-600">
+                              {formatCurrencyVN(fPrice)}
+                            </span>
+                            {origPrice > 0 && (
+                              <span className="text-[10px] text-slate-400 line-through">
+                                {formatCurrencyVN(origPrice)}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Date Range */}
+                          {(p.flashSaleStartTime || p.flashSaleEndTime) && (
+                            <div className="text-[10px] text-slate-500 flex items-center gap-1 font-mono">
+                              <Calendar className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span className="truncate">
+                                {formatDisplayDate(p.flashSaleStartTime) || 'Bắt đầu'} → {formatDisplayDate(p.flashSaleEndTime) || 'Vô thời hạn'}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Configure Action */}
+                          <div>
+                            <button
+                              onClick={() => openFlashSaleModal(p)}
+                              className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 hover:underline cursor-pointer"
+                            >
+                              <Sliders className="w-3 h-3" /> Sửa Flash Sale
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div>
+                          <button
+                            onClick={() => openFlashSaleModal(p)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-dashed border-rose-300 hover:border-rose-500 bg-white hover:bg-rose-50/50 text-rose-600 font-semibold text-[11px] transition-all cursor-pointer shadow-xs"
+                          >
+                            <Zap className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                            <span>+ Cài Flash Sale</span>
+                          </button>
+                          <div className="text-[10px] text-slate-400 mt-1">Chưa áp dụng giảm giá</div>
+                        </div>
+                      )}
+                    </td>
+
+                    {/* 7. Action Delete */}
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -177,7 +466,269 @@ export const SellerProductsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Add Product */}
+      {/* 3. Modal: FLASH SALE CONFIGURATION */}
+      {flashSaleModalOpen && targetProduct && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-xl w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-5 max-h-[92vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <Flame className="w-5 h-5 text-rose-600 fill-rose-600" /> Cài Đặt Flash Sale Cho Sản Phẩm
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Chọn sản phẩm, nhập giá gốc, phần trăm giảm giá và thời gian hiệu lực
+                </p>
+              </div>
+              <button
+                onClick={() => setFlashSaleModalOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveFlashSale} className="space-y-4 text-xs">
+              {/* Product Selector Dropdown */}
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">
+                  1. Chọn thiết bị áp dụng Flash Sale:
+                </label>
+                <select
+                  value={selectedProductId || targetProduct.id}
+                  onChange={(e) => handleSelectProductInModal(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none font-semibold text-slate-800 bg-white"
+                >
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (SKU: {p.variants[0]?.sku || 'SKU'} - {formatCurrencyVN(p.variants[0]?.price || 0)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Target Product Quick Summary Card */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <img
+                  src={targetProduct.variants[0]?.image || ''}
+                  alt={targetProduct.name}
+                  className="w-14 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    {targetProduct.brand?.name} • {targetProduct.category?.name}
+                  </div>
+                  <div className="font-bold text-slate-900 truncate text-xs">{targetProduct.name}</div>
+                  <div className="text-[11px] text-slate-500 mt-0.5">
+                    Giá bán hiện tại: <span className="font-bold text-blue-600">{formatCurrencyVN(targetProduct.variants[0]?.price || 0)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Toggle Enable/Disable Flash Sale */}
+              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                    <Zap className="w-4 h-4 fill-white" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-slate-900 text-xs">Kích hoạt Flash Sale cho sản phẩm này</div>
+                    <div className="text-[11px] text-slate-500">Hiển thị nhãn giảm giá đỏ và đồng hồ đếm ngược trên sàn</div>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={fsEnabled}
+                    onChange={(e) => setFsEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+                </label>
+              </div>
+
+              {/* Form inputs only active if enabled */}
+              {fsEnabled && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Original Price & Discount Percentage */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">
+                        2. Giá gốc sản phẩm (VNĐ):
+                      </label>
+                      <input
+                        type="number"
+                        min={1000}
+                        step={10000}
+                        required
+                        value={fsOriginalPrice}
+                        onChange={(e) => setFsOriginalPrice(Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none font-bold text-slate-800"
+                      />
+                      <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                        {formatCurrencyVN(fsOriginalPrice || 0)}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-slate-700 font-semibold mb-1">
+                        3. Giảm bao nhiêu phần trăm (%):
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          min={1}
+                          max={99}
+                          required
+                          value={fsDiscountPercent}
+                          onChange={(e) => setFsDiscountPercent(Number(e.target.value))}
+                          className="w-full px-3 py-2 pr-8 border border-slate-300 rounded-xl focus:ring-2 focus:ring-rose-500 focus:outline-none font-bold text-rose-600"
+                        />
+                        <Percent className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                      </div>
+                      
+                      {/* Quick percentage buttons */}
+                      <div className="flex items-center gap-1.5 mt-1.5">
+                        <span className="text-[10px] text-slate-400">Chọn nhanh:</span>
+                        {[10, 15, 20, 30, 50].map((pct) => (
+                          <button
+                            type="button"
+                            key={pct}
+                            onClick={() => setFsDiscountPercent(pct)}
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer ${
+                              fsDiscountPercent === pct
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {pct}%
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calculated Flash Sale Price Preview Box */}
+                  <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-900 to-red-950 text-white shadow-sm flex items-center justify-between">
+                    <div>
+                      <div className="text-[11px] text-rose-200 font-medium">Giá Flash Sale sau khi giảm:</div>
+                      <div className="text-xl font-black text-rose-300 tracking-tight">
+                        {formatCurrencyVN(computedFlashSalePrice)}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="inline-block px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-xs">
+                        -{fsDiscountPercent}% OFF
+                      </div>
+                      <div className="text-[10px] text-rose-200 mt-0.5">
+                        Tiết kiệm: <strong className="text-white">{formatCurrencyVN(computedSavings)}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Start & End Dates */}
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                    <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-rose-600" />
+                      <span>4. Thời gian bắt đầu và kết thúc Flash Sale</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-slate-600 font-medium mb-1">
+                          Thời gian bắt đầu:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          required
+                          value={fsStartTime}
+                          onChange={(e) => setFsStartTime(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-slate-600 font-medium mb-1">
+                          Thời gian kết thúc:
+                        </label>
+                        <input
+                          type="datetime-local"
+                          required
+                          value={fsEndTime}
+                          onChange={(e) => setFsEndTime(e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-mono text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick duration presets */}
+                    <div className="flex items-center gap-1.5 pt-1 text-[11px] text-slate-500 flex-wrap">
+                      <span>Thời lượng nhanh từ giờ bắt đầu:</span>
+                      {[
+                        { label: '+6 Giờ', h: 6 },
+                        { label: '+12 Giờ', h: 12 },
+                        { label: '+24 Giờ (1 ngày)', h: 24 },
+                        { label: '+3 Ngày', h: 72 },
+                        { label: '+7 Ngày', h: 168 },
+                      ].map((preset) => (
+                        <button
+                          type="button"
+                          key={preset.label}
+                          onClick={() => handleSetDurationHours(preset.h)}
+                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-rose-400 hover:text-rose-600 font-medium transition-colors cursor-pointer"
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Customer Preview Snapshot */}
+                  <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold">Đồng bộ tự động:</strong> Khi bạn bấm lưu, giá bán <strong className="text-rose-700">{formatCurrencyVN(computedFlashSalePrice)}</strong> kèm tag giảm giá <strong className="text-rose-700">-{fsDiscountPercent}%</strong> sẽ được áp dụng ngay lập tức tại mục Flash Sale Trang Chủ và Chi Tiết Sản Phẩm cho khách hàng.
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                {targetProduct.isFlashSale ? (
+                  <button
+                    type="button"
+                    onClick={handleDisableFlashSale}
+                    className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-bold cursor-pointer transition-colors"
+                  >
+                    Gỡ khỏi Flash Sale
+                  </button>
+                ) : (
+                  <div></div>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFlashSaleModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer shadow-md transition-colors"
+                  >
+                    Lưu cấu hình Flash Sale
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal: ADD NEW PRODUCT */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4 max-h-[90vh] overflow-y-auto">

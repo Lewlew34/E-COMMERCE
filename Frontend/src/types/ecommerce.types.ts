@@ -46,6 +46,11 @@ export interface Product {
   reviewCount?: number;
   soldCount?: number;
   isFlashSale?: boolean;
+  flashSaleOriginalPrice?: number;
+  flashSaleDiscountPercent?: number;
+  flashSalePrice?: number;
+  flashSaleStartTime?: string;
+  flashSaleEndTime?: string;
   isFeatured?: boolean;
 }
 

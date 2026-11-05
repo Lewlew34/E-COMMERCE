@@ -26,27 +26,47 @@ export const CustomerHomePage: React.FC = () => {
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
 
-  // Flash Sale Countdown Timer
-  const [timeLeft, setTimeLeft] = useState({ hours: 5, minutes: 42, seconds: 18 });
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
-        if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
-        if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
-        return prev;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
   const allProducts = productService.getAll();
   const categories = productService.getCategories();
   const brands = productService.getBrands();
 
   const flashSaleProducts = allProducts.filter(p => p.isFlashSale);
   const featuredProducts = allProducts.filter(p => p.isFeatured);
+
+  // Flash Sale Countdown Timer synchronized with active sales
+  const [timeLeft, setTimeLeft] = useState({ hours: 5, minutes: 42, seconds: 18 });
+
+  useEffect(() => {
+    const calcTime = () => {
+      const activeSaleWithEnd = flashSaleProducts.find(p => p.flashSaleEndTime);
+      if (activeSaleWithEnd?.flashSaleEndTime) {
+        const diffMs = Math.max(0, new Date(activeSaleWithEnd.flashSaleEndTime).getTime() - Date.now());
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+        return { hours, minutes, seconds };
+      }
+      return null;
+    };
+
+    const initial = calcTime();
+    if (initial) setTimeLeft(initial);
+
+    const timer = setInterval(() => {
+      const calculated = calcTime();
+      if (calculated) {
+        setTimeLeft(calculated);
+      } else {
+        setTimeLeft(prev => {
+          if (prev.seconds > 0) return { ...prev, seconds: prev.seconds - 1 };
+          if (prev.minutes > 0) return { ...prev, minutes: 59, seconds: 59 };
+          if (prev.hours > 0) return { hours: prev.hours - 1, minutes: 59, seconds: 59 };
+          return prev;
+        });
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [flashSaleProducts]);
 
   return (
     <div className="space-y-10 pb-12">
@@ -206,9 +226,13 @@ export const CustomerHomePage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {flashSaleProducts.map((p) => {
               const v = p.variants[0];
-              const discountPercent = v?.compareAtPrice && v.compareAtPrice > v.price
-                ? Math.round(((v.compareAtPrice - v.price) / v.compareAtPrice) * 100)
-                : 15;
+              const discountPercent = p.flashSaleDiscountPercent ?? (
+                v?.compareAtPrice && v.compareAtPrice > v.price
+                  ? Math.round(((v.compareAtPrice - v.price) / v.compareAtPrice) * 100)
+                  : 15
+              );
+              const salePrice = p.flashSalePrice ?? v?.price ?? 0;
+              const origPrice = p.flashSaleOriginalPrice ?? v?.compareAtPrice ?? (salePrice > 0 ? Math.round(salePrice / (1 - discountPercent / 100)) : 0);
 
               return (
                 <div
@@ -234,11 +258,11 @@ export const CustomerHomePage: React.FC = () => {
                   <div className="mt-4 pt-3 border-t border-slate-100">
                     <div className="flex items-baseline gap-2">
                       <span className="text-base font-black text-red-600">
-                        {formatCurrencyVN(v?.price || 0)}
+                        {formatCurrencyVN(salePrice)}
                       </span>
-                      {v?.compareAtPrice && (
+                      {origPrice > 0 && origPrice > salePrice && (
                         <span className="text-xs text-slate-400 line-through">
-                          {formatCurrencyVN(v.compareAtPrice)}
+                          {formatCurrencyVN(origPrice)}
                         </span>
                       )}
                     </div>
