@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
+import { AIChatWidget } from '../components/common/AIChatWidget';
 
 export const CustomerLayout: React.FC = () => {
   const { user, role, logout, switchRole } = useAuth();
@@ -325,6 +326,9 @@ export const CustomerLayout: React.FC = () => {
           © 2026 TechMart E-Commerce Platform. Xây dựng bằng React + TypeScript + Tailwind CSS.
         </div>
       </footer>
+
+      {/* 5. Floating AI Chatbot for Customers */}
+      <AIChatWidget />
     </div>
   );
 };
