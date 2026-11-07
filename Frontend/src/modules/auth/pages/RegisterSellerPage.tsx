@@ -13,13 +13,24 @@ export const RegisterSellerPage: React.FC = () => {
     address: '',
     password: '',
   });
-  const { loginAs } = useAuth();
+  const { loginWithUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Giả lập đăng ký gian hàng thành công & chuyển vào Seller Center
-    loginAs('SELLER');
+    loginWithUser({
+      id: Date.now(),
+      name: formData.name,
+      full_name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      shopName: formData.shopName,
+      role: 'staff',
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
+      createdAt: new Date().toISOString().split('T')[0],
+    });
     navigate('/seller/dashboard');
   };
 

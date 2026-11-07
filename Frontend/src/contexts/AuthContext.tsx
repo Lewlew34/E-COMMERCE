@@ -6,47 +6,94 @@ interface AuthContextType {
   user: User | null;
   role: UserRole | null;
   isAuthenticated: boolean;
-  loginAs: (role: UserRole) => void;
+  login: (email: string, password?: string) => { success: boolean; message?: string; user?: User };
+  loginWithUser: (user: User) => void;
   logout: () => void;
-  switchRole: (role: UserRole) => void;
+  // Helpers
+  isAdmin: boolean;
+  isSeller: boolean;
+  isCustomer: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Always start unauthenticated on fresh app load unless an explicit active session is in sessionStorage
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('tech_store_user');
-    if (saved) {
-      try {
+    try {
+      // Clear legacy permanent localStorage to ensure login screen is required first
+      localStorage.removeItem('tech_store_user');
+      localStorage.removeItem('techmart_auth_user');
+
+      const saved = sessionStorage.getItem('tech_store_session_user');
+      if (saved) {
         return JSON.parse(saved);
-      } catch {
-        return DEMO_USERS.customer;
       }
+    } catch {
+      return null;
     }
-    return DEMO_USERS.customer;
+    return null;
   });
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('tech_store_user', JSON.stringify(user));
+      sessionStorage.setItem('tech_store_session_user', JSON.stringify(user));
     } else {
-      localStorage.removeItem('tech_store_user');
+      sessionStorage.removeItem('tech_store_session_user');
     }
   }, [user]);
 
-  const loginAs = (targetRole: UserRole) => {
-    if (targetRole === 'ADMIN') setUser(DEMO_USERS.admin);
-    else if (targetRole === 'SELLER') setUser(DEMO_USERS.seller);
-    else setUser(DEMO_USERS.customer);
+  const login = (email: string, _password?: string) => {
+    const trimmed = email.trim().toLowerCase();
+    let matchedUser: User | undefined;
+
+    if (trimmed.includes('admin') || trimmed === 'admin@techmart.vn') {
+      matchedUser = DEMO_USERS.admin;
+    } else if (trimmed.includes('seller') || trimmed.includes('gearzone') || trimmed === 'seller@gearzone.vn') {
+      matchedUser = DEMO_USERS.seller;
+    } else if (trimmed.includes('khachhang') || trimmed === 'khachhang@techstore.vn') {
+      matchedUser = DEMO_USERS.customer;
+    } else {
+      // Find from any registered users in demo list
+      matchedUser = Object.values(DEMO_USERS).find(u => u.email.toLowerCase() === trimmed);
+      if (!matchedUser) {
+        // Fallback create customer user for new email
+        matchedUser = {
+          id: Date.now(),
+          name: email.split('@')[0],
+          full_name: email.split('@')[0],
+          email,
+          role: 'customer',
+          status: 'active',
+          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+      }
+    }
+
+    if (matchedUser.status === 'banned') {
+      return { success: false, message: 'Tài khoản này đã bị khóa do vi phạm chính sách của sàn!' };
+    }
+
+    setUser(matchedUser);
+    return { success: true, user: matchedUser };
+  };
+
+  const loginWithUser = (targetUser: User) => {
+    setUser(targetUser);
   };
 
   const logout = () => {
     setUser(null);
+    localStorage.removeItem('tech_store_user');
+    localStorage.removeItem('techmart_auth_user');
+    sessionStorage.removeItem('tech_store_session_user');
   };
 
-  const switchRole = (newRole: UserRole) => {
-    loginAs(newRole);
-  };
+  const currentRole = user?.role ? String(user.role).toLowerCase() : null;
+  const isAdmin = currentRole === 'admin';
+  const isSeller = currentRole === 'staff' || currentRole === 'seller';
+  const isCustomer = currentRole === 'customer';
 
   return (
     <AuthContext.Provider
@@ -54,9 +101,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         role: user ? user.role : null,
         isAuthenticated: !!user,
-        loginAs,
+        login,
+        loginWithUser,
         logout,
-        switchRole,
+        isAdmin,
+        isSeller,
+        isCustomer,
       }}
     >
       {children}

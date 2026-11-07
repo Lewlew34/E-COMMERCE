@@ -11,7 +11,7 @@ export const RegisterCustomerPage: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
-  const { loginAs } = useAuth();
+  const { loginWithUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -21,7 +21,17 @@ export const RegisterCustomerPage: React.FC = () => {
       return;
     }
     // Giả lập tạo tài khoản khách hàng thành công
-    loginAs('CUSTOMER');
+    loginWithUser({
+      id: Date.now(),
+      name: formData.name,
+      full_name: formData.name,
+      email: formData.email,
+      phone: formData.phone,
+      role: 'customer',
+      status: 'active',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      createdAt: new Date().toISOString().split('T')[0],
+    });
     navigate('/');
   };
 

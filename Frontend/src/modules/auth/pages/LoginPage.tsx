@@ -1,47 +1,64 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, ArrowRight, ShieldCheck, Store, User as UserIcon } from 'lucide-react';
+import { Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
-import type { UserRole } from '../../../types/auth.types';
+import { useToast } from '../../../contexts/ToastContext';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { loginAs } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Giả lập login theo email hoặc mặc định Customer
-    if (email.includes('admin')) {
-      loginAs('ADMIN');
-      navigate('/admin/dashboard');
-    } else if (email.includes('seller')) {
-      loginAs('SELLER');
-      navigate('/seller/dashboard');
+    if (!email.trim() || !password.trim()) {
+      showToast('Vui lòng nhập đầy đủ Email và Mật khẩu!', 'error');
+      return;
+    }
+
+    setLoading(true);
+    const result = login(email, password);
+    setLoading(false);
+
+    if (!result.success || !result.user) {
+      showToast(result.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!', 'error');
+      return;
+    }
+
+    showToast(`Đăng nhập thành công! Chào mừng ${result.user.name}`, 'success');
+
+    const roleLower = String(result.user.role).toLowerCase();
+    // Route based on role: Luôn đưa về trang khởi điểm chuẩn xác
+    if (roleLower === 'admin') {
+      navigate('/admin/dashboard', { replace: true });
+    } else if (roleLower === 'staff' || roleLower === 'seller') {
+      navigate('/seller/dashboard', { replace: true });
     } else {
-      loginAs('CUSTOMER');
-      navigate('/');
+      navigate('/', { replace: true });
     }
   };
 
-  const handleQuickLogin = (role: UserRole) => {
-    loginAs(role);
-    if (role === 'ADMIN') navigate('/admin/dashboard');
-    else if (role === 'SELLER') navigate('/seller/dashboard');
-    else navigate('/');
+  const handleFillDemo = (demoEmail: string) => {
+    setEmail(demoEmail);
+    setPassword('123456');
   };
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-7 text-slate-100">
       <div className="text-center mb-6">
+        <div className="w-10 h-10 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto mb-2">
+          <ShieldCheck className="w-5 h-5" />
+        </div>
         <h2 className="text-2xl font-black text-white">Đăng Nhập Tài Khoản</h2>
         <p className="text-xs text-slate-400 mt-1">
           Truy cập hệ sinh thái thương mại điện tử công nghệ TechMart
         </p>
       </div>
 
-      {/* Form đăng nhập thông thường */}
+      {/* Form đăng nhập chính quy */}
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-300 mb-1.5">
@@ -65,9 +82,9 @@ export const LoginPage: React.FC = () => {
             <label className="text-xs font-semibold text-slate-300">
               Mật khẩu
             </label>
-            <a href="#" className="text-xs text-blue-400 hover:underline">
+            <Link to="/forgot-password" className="text-xs text-blue-400 hover:underline">
               Quên mật khẩu?
-            </a>
+            </Link>
           </div>
           <div className="relative">
             <input
@@ -84,47 +101,52 @@ export const LoginPage: React.FC = () => {
 
         <button
           type="submit"
-          className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+          disabled={loading}
+          className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-50"
         >
-          <span>Đăng nhập</span>
+          <span>{loading ? 'Đang xử lý...' : 'Đăng nhập'}</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </form>
 
-      {/* Demo 1-Click Login Section (Cực kỳ tiện dụng khi phát triển) */}
-      <div className="mt-6 pt-6 border-t border-slate-800">
-        <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-          ⚡ Đăng nhập nhanh kiểm thử (1-Click Demo)
+      {/* Thông tin tài khoản mẫu hỗ trợ kiểm thử */}
+      <div className="mt-6 pt-5 border-t border-slate-800 text-[11px] text-slate-400">
+        <div className="font-semibold text-slate-300 mb-2 flex items-center justify-between">
+          <span>Gợi ý tài khoản kiểm thử:</span>
+          <span className="text-[10px] text-slate-500">Bấm để điền nhanh</span>
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">
           <button
             type="button"
-            onClick={() => handleQuickLogin('CUSTOMER')}
-            className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-800/80 hover:bg-blue-600/20 border border-slate-700 hover:border-blue-500/50 transition-all text-center group cursor-pointer"
+            onClick={() => handleFillDemo('admin@techmart.vn')}
+            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
           >
-            <UserIcon className="w-5 h-5 text-blue-400 mb-1 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold text-white">Khách hàng</span>
-            <span className="text-[10px] text-slate-400">Mua sắm</span>
+            <div>
+              <span className="text-amber-400 font-bold">Admin:</span> admin@techmart.vn
+            </div>
+            <span className="text-[10px] text-slate-400">Pass: 123456</span>
           </button>
 
           <button
             type="button"
-            onClick={() => handleQuickLogin('SELLER')}
-            className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-800/80 hover:bg-emerald-600/20 border border-slate-700 hover:border-emerald-500/50 transition-all text-center group cursor-pointer"
+            onClick={() => handleFillDemo('seller@gearzone.vn')}
+            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
           >
-            <Store className="w-5 h-5 text-emerald-400 mb-1 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold text-white">Người bán</span>
-            <span className="text-[10px] text-slate-400">Quản lý Shop</span>
+            <div>
+              <span className="text-emerald-400 font-bold">Seller:</span> seller@gearzone.vn
+            </div>
+            <span className="text-[10px] text-slate-400">Pass: 123456</span>
           </button>
 
           <button
             type="button"
-            onClick={() => handleQuickLogin('ADMIN')}
-            className="flex flex-col items-center justify-center p-2.5 rounded-xl bg-slate-800/80 hover:bg-amber-600/20 border border-slate-700 hover:border-amber-500/50 transition-all text-center group cursor-pointer"
+            onClick={() => handleFillDemo('khachhang@techstore.vn')}
+            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
           >
-            <ShieldCheck className="w-5 h-5 text-amber-400 mb-1 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold text-white">Admin</span>
-            <span className="text-[10px] text-slate-400">Quản trị sàn</span>
+            <div>
+              <span className="text-blue-400 font-bold">Khách:</span> khachhang@techstore.vn
+            </div>
+            <span className="text-[10px] text-slate-400">Pass: 123456</span>
           </button>
         </div>
       </div>

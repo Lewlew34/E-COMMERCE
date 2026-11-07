@@ -141,7 +141,7 @@ export const AdminLayout: React.FC = () => {
         </header>
 
         {/* Main Body */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto" key={location.pathname}>
           <Outlet />
         </main>
       </div>

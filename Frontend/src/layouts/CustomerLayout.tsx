@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { 
   ShoppingCart, 
   Search, 
@@ -15,7 +15,8 @@ import {
   LogOut,
   ChevronDown,
   Heart,
-  Package
+  Package,
+  Store
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -23,13 +24,13 @@ import { useWishlist } from '../contexts/WishlistContext';
 import { AIChatWidget } from '../components/common/AIChatWidget';
 
 export const CustomerLayout: React.FC = () => {
-  const { user, role, logout, switchRole } = useAuth();
+  const { user, logout, isAdmin, isSeller } = useAuth();
   const { totalCount } = useCart();
   const { totalWishlistCount } = useWishlist();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,58 +54,25 @@ export const CustomerLayout: React.FC = () => {
             </span>
           </div>
 
-          {/* Quick Role Tester Bar (Cực kỳ tiện dụng khi phát triển & demo) */}
-          <div className="flex items-center gap-2">
-            <span className="text-slate-400">Đang xem với vai trò:</span>
-            <div className="relative">
-              <button
-                onClick={() => setShowRoleMenu(!showRoleMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors text-xs"
+          {/* Direct Portal Return Button for Admin / Seller when inspecting store */}
+          <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                to="/admin/dashboard"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors shadow-sm"
               >
-                <span>{role === 'ADMIN' ? '👑 Quản Trị Viên (Admin)' : role === 'SELLER' ? '🏪 Người Bán (Seller)' : '👤 Khách Hàng (Customer)'}</span>
-                <ChevronDown className="w-3 h-3" />
-              </button>
-
-              {showRoleMenu && (
-                <div className="absolute right-0 mt-1.5 w-56 bg-white rounded-lg shadow-xl border border-slate-200 py-1.5 text-slate-800 z-50">
-                  <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    Chuyển nhanh vai trò (Demo)
-                  </div>
-                  <button
-                    onClick={() => { switchRole('CUSTOMER'); setShowRoleMenu(false); navigate('/'); }}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 flex items-center justify-between"
-                  >
-                    <span>Khách Hàng (Customer)</span>
-                    {role === 'CUSTOMER' && <span className="text-blue-600 font-bold">✓</span>}
-                  </button>
-                  <button
-                    onClick={() => { switchRole('SELLER'); setShowRoleMenu(false); navigate('/seller/dashboard'); }}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 flex items-center justify-between"
-                  >
-                    <span>Người Bán (Seller Center)</span>
-                    {role === 'SELLER' && <span className="text-blue-600 font-bold">✓</span>}
-                  </button>
-                  <button
-                    onClick={() => { switchRole('ADMIN'); setShowRoleMenu(false); navigate('/admin/dashboard'); }}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-slate-100 flex items-center justify-between"
-                  >
-                    <span>Quản Trị Viên (Admin)</span>
-                    {role === 'ADMIN' && <span className="text-blue-600 font-bold">✓</span>}
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {role === 'ADMIN' && (
-              <Link to="/admin/dashboard" className="text-amber-400 hover:underline font-semibold ml-2">
-                Vào Admin Portal →
+                <span>👑 Quay về Bảng Quản Trị Admin</span>
               </Link>
             )}
-            {role === 'SELLER' && (
-              <Link to="/seller/dashboard" className="text-emerald-400 hover:underline font-semibold ml-2">
-                Vào Kênh Người Bán →
+            {isSeller && (
+              <Link
+                to="/seller/dashboard"
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors shadow-sm"
+              >
+                <span>🏪 Quay về Kênh Người Bán</span>
               </Link>
             )}
+            <span className="text-slate-400 hidden sm:inline">Hotline hỗ trợ: <strong className="text-white">1900 8888</strong></span>
           </div>
         </div>
       </div>
@@ -204,6 +172,26 @@ export const CustomerLayout: React.FC = () => {
                       <div className="font-bold text-slate-900">{user.name}</div>
                       <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
                     </div>
+                    {isAdmin && (
+                      <Link
+                        to="/admin/dashboard"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-amber-50 text-amber-700 font-bold border-b border-slate-100"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-amber-600" />
+                        <span>👑 Bảng Quản Trị Admin</span>
+                      </Link>
+                    )}
+                    {isSeller && (
+                      <Link
+                        to="/seller/dashboard"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-emerald-50 text-emerald-700 font-bold border-b border-slate-100"
+                      >
+                        <Store className="w-4 h-4 text-emerald-600" />
+                        <span>🏪 Kênh Người Bán (Seller)</span>
+                      </Link>
+                    )}
                     <Link
                       to="/customer/orders"
                       onClick={() => setShowUserMenu(false)}
@@ -258,15 +246,24 @@ export const CustomerLayout: React.FC = () => {
             <Link to="/catalog?cat=pc-component" className="flex items-center gap-1.5 hover:text-blue-600">
               <Cpu className="w-4 h-4" /> Linh kiện PC & VGA
             </Link>
-            <Link to="/seller/register" className="ml-auto text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1">
-              🚀 Trở thành Người bán hàng
-            </Link>
+            {isSeller && (
+              <Link to="/seller/dashboard" className="ml-auto text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 transition-colors shadow-xs">
+                <Store className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Kênh Người Bán (Seller) →</span>
+              </Link>
+            )}
+            {isAdmin && (
+              <Link to="/admin/dashboard" className="ml-auto text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded-lg border border-amber-200 transition-colors shadow-xs">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                <span>Kênh Quản Trị Admin →</span>
+              </Link>
+            )}
           </div>
         </div>
       </header>
 
       {/* 3. Main Body Content */}
-      <main className="flex-1">
+      <main className="flex-1" key={location.pathname + location.search}>
         <Outlet />
       </main>
 

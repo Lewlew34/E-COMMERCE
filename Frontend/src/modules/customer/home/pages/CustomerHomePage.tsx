@@ -66,7 +66,7 @@ export const CustomerHomePage: React.FC = () => {
       }
     }, 1000);
     return () => clearInterval(timer);
-  }, [flashSaleProducts]);
+  }, []);
 
   return (
     <div className="space-y-10 pb-12">

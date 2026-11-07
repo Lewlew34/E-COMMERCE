@@ -26,14 +26,15 @@ export const CatalogPage: React.FC = () => {
     if (categoryParam) {
       setSelectedCategorySlug(categoryParam);
     }
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }, [categoryParam]);
 
   // Filter products
   const filtered = allProducts.filter(p => {
     // Search query
     if (queryParam) {
-      const matchName = p.name.toLowerCase().includes(queryParam.toLowerCase());
-      const matchBrand = p.brand?.name.toLowerCase().includes(queryParam.toLowerCase());
+      const matchName = p.name ? p.name.toLowerCase().includes(queryParam.toLowerCase()) : false;
+      const matchBrand = p.brand?.name ? p.brand.name.toLowerCase().includes(queryParam.toLowerCase()) : false;
       if (!matchName && !matchBrand) return false;
     }
 

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   AlertTriangle, 
   PlusCircle, 
@@ -14,6 +15,7 @@ import { formatCurrencyVN } from '../../../../utils/format';
 
 export const SellerDashboardPage: React.FC = () => {
   const [orders, setOrders] = useState(MOCK_ORDERS);
+  const navigate = useNavigate();
 
   const handleUpdateStatus = (orderId: string, nextStatus: 'CONFIRMED' | 'SHIPPING') => {
     setOrders(prev =>
@@ -36,6 +38,7 @@ export const SellerDashboardPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => navigate('/seller/products')}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm transition-colors cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />

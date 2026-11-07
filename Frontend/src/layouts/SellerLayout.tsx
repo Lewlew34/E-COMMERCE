@@ -62,8 +62,8 @@ export const SellerLayout: React.FC = () => {
         {/* Quick Add Product Button */}
         <div className="px-3 pt-3">
           <button
-            onClick={() => navigate('/seller/products/new')}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-all"
+            onClick={() => navigate('/seller/products')}
+            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs shadow-md transition-all cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Thêm sản phẩm mới</span>
@@ -160,7 +160,7 @@ export const SellerLayout: React.FC = () => {
         </header>
 
         {/* Main Body */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto" key={location.pathname}>
           <Outlet />
         </main>
       </div>

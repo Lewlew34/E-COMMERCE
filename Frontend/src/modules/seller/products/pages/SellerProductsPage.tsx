@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Package, 
   PlusCircle, 
@@ -13,7 +14,8 @@ import {
   Sliders, 
   Percent, 
   Sparkles, 
-  X
+  X,
+  Eye
 } from 'lucide-react';
 import { productService } from '../../../../services/storageService';
 import type { Product } from '../../../../types/ecommerce.types';
@@ -446,9 +448,16 @@ export const SellerProductsPage: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 7. Action Delete */}
+                    {/* 7. Action View & Delete */}
                     <td className="py-3 px-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          to={`/product/${p.id}`}
+                          className="p-1.5 hover:text-blue-600 rounded-lg hover:bg-blue-50 text-slate-400 transition-colors inline-flex items-center"
+                          title="Xem trên sàn thương mại"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Link>
                         <button
                           onClick={() => handleDelete(p.id)}
                           className="p-1.5 hover:text-red-600 rounded-lg hover:bg-red-50 text-slate-400 transition-colors cursor-pointer"

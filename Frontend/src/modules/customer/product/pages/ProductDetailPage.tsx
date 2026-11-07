@@ -21,6 +21,7 @@ import { formatCurrencyVN } from '../../../../utils/format';
 import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useToast } from '../../../../contexts/ToastContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -28,6 +29,7 @@ export const ProductDetailPage: React.FC = () => {
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { showToast } = useToast();
+  const { isAdmin, isSeller } = useAuth();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
@@ -89,7 +91,40 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      {/* Admin / Seller Quick Return Management Banner */}
+      {(isAdmin || isSeller) && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-slate-900 text-white shadow-lg border border-slate-800">
+          <div className="flex items-center gap-2.5 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span>
+              Bạn đang xem chi tiết thiết bị với vai trò{' '}
+              <strong className={isAdmin ? 'text-amber-400' : 'text-emerald-400'}>
+                {isAdmin ? '👑 Quản Trị Viên (Admin)' : '🏪 Chủ Gian Hàng (Seller)'}
+              </strong>
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <Link
+                to="/admin/dashboard"
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-colors flex items-center gap-1.5 shadow"
+              >
+                <span>← Quay về Trang Quản Trị Admin</span>
+              </Link>
+            )}
+            {isSeller && (
+              <Link
+                to="/seller/products"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition-colors flex items-center gap-1.5 shadow"
+              >
+                <span>← Quay về Quản Lý Kho & Sản Phẩm</span>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 1. Breadcrumbs */}
       <nav className="flex items-center gap-2 text-xs text-slate-500 overflow-x-auto whitespace-nowrap">
         <Link to="/" className="hover:text-blue-600 transition-colors">Trang chủ</Link>

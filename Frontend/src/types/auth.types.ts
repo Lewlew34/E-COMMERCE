@@ -1,14 +1,22 @@
-export type UserRole = 'CUSTOMER' | 'ADMIN' | 'SELLER';
+// User roles mapped to TechEcommerceDB [users].[role] ('admin', 'staff', 'customer')
+// Supporting both lowercase (DB standard) and uppercase aliases for backward compatibility.
+export type UserRole = 'admin' | 'staff' | 'customer' | 'seller' | 'ADMIN' | 'SELLER' | 'CUSTOMER';
+
+export type UserStatus = 'active' | 'inactive' | 'banned';
 
 export interface User {
-  id: string;
-  name: string;
+  id: string | number;
   email: string;
-  role: UserRole;
-  avatar?: string;
+  name: string; // UI alias
+  full_name?: string; // DB standard
   phone?: string;
-  shopName?: string; // Dành riêng cho Người bán (SELLER)
-  createdAt: string;
+  role: UserRole;
+  status?: UserStatus;
+  avatar?: string;
+  shopName?: string; // Dành riêng cho Người bán (staff/seller)
+  createdAt?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuthState {
