@@ -10,6 +10,7 @@ import type {
   InventoryLog,
   OrderStatus
 } from '../types/ecommerce.types';
+import type { User } from '../types/auth.types';
 import {
   INITIAL_BRANDS,
   INITIAL_CATEGORIES,
@@ -51,7 +52,7 @@ function setStored<T>(key: string, value: T): void {
 }
 
 // ==========================================
-// 1. PRODUCTS & CATALOG
+// 1. PRODUCTS & CATALOG (LocalStorage Fallback & Admin)
 // ==========================================
 export const productService = {
   getAll(): Product[] {
@@ -78,7 +79,7 @@ export const productService = {
   getVariantById(variantId: number): { product: Product; variant: ProductVariant } | null {
     const products = this.getAll();
     for (const p of products) {
-      const variant = p.variants.find(v => v.id === variantId);
+      const variant = p.variants?.find(v => v.id === variantId);
       if (variant) {
         return { product: p, variant };
       }
@@ -137,7 +138,6 @@ export const productService = {
       p.flashSaleStartTime = config.startTime;
       p.flashSaleEndTime = config.endTime;
 
-      // Sync primary variant prices
       if (p.variants && p.variants.length > 0) {
         p.variants = p.variants.map((v, idx) => {
           if (idx === 0) {
@@ -279,7 +279,6 @@ export const orderService = {
     orders.unshift(newOrder);
     setStored(STORAGE_KEYS.ORDERS, orders);
 
-    // Record inventory log and deduct stock
     orderData.items.forEach(item => {
       const match = productService.getVariantById(item.variantId);
       if (match) {
@@ -403,5 +402,333 @@ export const inventoryService = {
     const logs = this.getLogs();
     logs.unshift(log);
     setStored(STORAGE_KEYS.INVENTORY_LOGS, logs);
+  }
+};
+// Bổ sung API Service gọi PHP Backend
+const API_BASE_URL = 'http://localhost/TechMart/Backend/api';
+
+interface ApiProduct {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  specifications: Record<string, string | number> | null;
+  brand_id?: number | string | null;
+  brand_name?: string | null;
+  brand_slug?: string | null;
+  brand_logo?: string | null;
+  category_id?: number | string | null;
+  category_name?: string | null;
+  category_slug?: string | null;
+  is_flash_sale?: number | string | null;
+  flash_sale_start_time?: string | null;
+  flash_sale_end_time?: string | null;
+  price: string | number | null;
+  compare_price: string | number | null;
+  total_stock: string | number | null;
+  thumbnail: string | null;
+  variant_id: number | null;
+};
+
+interface ApiListResponse<T> {
+  status: string;
+  data: T[];
+  message?: string;
+}
+
+async function fetchApiList<T>(endpoint: string): Promise<T[]> {
+  const response = await fetch(`${API_BASE_URL}/${endpoint}`);
+  if (!response.ok) {
+    throw new Error(`PHP API ${endpoint} trả về HTTP ${response.status}`);
+  }
+
+  const result = await response.json() as ApiListResponse<T>;
+  if (result.status !== 'success' || !Array.isArray(result.data)) {
+    throw new Error(result.message || `PHP API ${endpoint} trả về dữ liệu không hợp lệ`);
+  }
+  return result.data;
+}
+
+function normalizeCatalogValue(value: string | null | undefined): string {
+  return value?.trim().toLocaleLowerCase() || '';
+}
+
+function mapApiProduct(
+  item: ApiProduct,
+  brands: Brand[] = [],
+  categories: Category[] = []
+): Product {
+  const matchedBrand = brands.find(brand =>
+    (item.brand_id != null && Number(item.brand_id) === brand.id)
+    || normalizeCatalogValue(item.brand_name) === normalizeCatalogValue(brand.name)
+    || normalizeCatalogValue(item.brand_slug) === normalizeCatalogValue(brand.slug)
+  );
+  const matchedCategory = categories.find(category =>
+    (item.category_id != null && Number(item.category_id) === category.id)
+    || normalizeCatalogValue(item.category_name) === normalizeCatalogValue(category.name)
+    || normalizeCatalogValue(item.category_slug) === normalizeCatalogValue(category.slug)
+  );
+  const brandId = Number(item.brand_id) || matchedBrand?.id || 0;
+  const categoryId = Number(item.category_id) || matchedCategory?.id || 0;
+  const price = Number(item.price) || 0;
+  const compareAtPrice = Number(item.compare_price) || undefined;
+
+  return {
+    id: Number(item.id),
+    name: item.name,
+    slug: item.slug,
+    brandId,
+    categoryId,
+    description: item.description || '',
+    specifications: item.specifications || {},
+    status: 'active',
+    brand: {
+      id: brandId,
+      name: item.brand_name || matchedBrand?.name || 'Chính hãng',
+      slug: item.brand_slug || matchedBrand?.slug || '',
+      logo: item.brand_logo || matchedBrand?.logo || ''
+    },
+    category: {
+      id: categoryId,
+      name: item.category_name || matchedCategory?.name || '',
+      slug: item.category_slug || matchedCategory?.slug || ''
+    },
+    isFeatured: true,
+    isFlashSale: Number(item.is_flash_sale) === 1,
+    flashSalePrice: Number(item.is_flash_sale) === 1 ? price : undefined,
+    flashSaleOriginalPrice: Number(item.is_flash_sale) === 1 ? compareAtPrice : undefined,
+    flashSaleStartTime: item.flash_sale_start_time || undefined,
+    flashSaleEndTime: item.flash_sale_end_time || undefined,
+    rating: 0,
+    reviewCount: 0,
+    soldCount: 0,
+    variants: [{
+      id: Number(item.variant_id) || Number(item.id) * 100,
+      productId: Number(item.id),
+      sku: item.slug,
+      price,
+      compareAtPrice,
+      stockQuantity: Number(item.total_stock) || 0,
+      attributes: {},
+      image: item.thumbnail || ''
+    }]
+  };
+}
+
+export const phpApiService = {
+  async getCatalogLookups(): Promise<{ brands: Brand[]; categories: Category[] }> {
+    const [brands, categories] = await Promise.all([
+      fetchApiList<Brand>('brands.php'),
+      fetchApiList<Omit<Category, 'parentId'> & { parent_id?: number | null }>('categories.php')
+    ]);
+    return {
+      brands: brands.map(brand => ({ ...brand, id: Number(brand.id), logo: brand.logo || '' })),
+      categories: categories.map(category => ({
+        ...category,
+        id: Number(category.id),
+        parentId: category.parent_id == null ? null : Number(category.parent_id)
+      }))
+    };
+  },
+
+  async getHomeProducts(): Promise<Product[]> {
+    try {
+      const products = (await fetchApiList<ApiProduct>('products.php')).map(item => mapApiProduct(item));
+      products.forEach(product => productService.saveProduct(product));
+      return products;
+    } catch (error) {
+      console.warn("Không thể nối tới PHP API, chuyển sang mockData LocalStorage:", error);
+      return [];
+    }
+  },
+
+  async getCatalogData(): Promise<{ products: Product[]; brands: Brand[]; categories: Category[] }> {
+    const [apiProducts, brands, categories] = await Promise.all([
+      fetchApiList<ApiProduct>('products.php'),
+      fetchApiList<Brand>('brands.php'),
+      fetchApiList<Omit<Category, 'parentId'> & { parent_id?: number | null }>('categories.php')
+    ]);
+    const normalizedBrands = brands.map(brand => ({
+      ...brand,
+      id: Number(brand.id),
+      logo: brand.logo || ''
+    }));
+    const normalizedCategories = categories.map(category => ({
+      ...category,
+      id: Number(category.id),
+      parentId: category.parent_id == null ? null : Number(category.parent_id)
+    }));
+    const products = apiProducts.map(item =>
+      mapApiProduct(item, normalizedBrands, normalizedCategories)
+    );
+
+    if (products.length > 0 && products.every(product => product.categoryId === 0)) {
+      throw new Error(
+        'products.php chưa trả về category_id/category_name/category_slug. ' +
+        'Cập nhật file Backend/api/products.php trong thư mục XAMPP/htdocs.'
+      );
+    }
+
+    products.forEach(product => productService.saveProduct(product));
+
+    return {
+      products,
+      brands: normalizedBrands,
+      categories: normalizedCategories
+    };
+  }
+};
+
+export interface SellerProductInput {
+  variantId?: number;
+  name: string;
+  brandId: number;
+  categoryId: number;
+  description: string;
+  sku: string;
+  price: number;
+  comparePrice: number | null;
+  stock: number;
+  variantAttr: string;
+  image: string;
+}
+
+export interface SellerMetrics {
+  product_count: number;
+  stock_count: number;
+  low_stock_count: number;
+  order_count: number;
+  pending_count: number;
+  confirmed_count: number;
+  shipping_count: number;
+  delivered_count: number;
+  revenue: number;
+  top_products: Array<{
+    id: number;
+    name: string;
+    sku: string;
+    sold_count: number;
+    revenue: number;
+    stock_quantity: number;
+  }>;
+}
+
+async function sellerRequest<T>(
+  endpoint: string,
+  options: { method?: string; body?: unknown } = {}
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}/${endpoint}`, {
+    method: options.method || 'GET',
+    credentials: 'include',
+    headers: options.body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body)
+  });
+  const result = await response.json() as { status: string; data?: T; user?: T; message?: string };
+  if (!response.ok || result.status !== 'success') {
+    throw new Error(result.message || `Seller API trả về HTTP ${response.status}`);
+  }
+  if ('user' in result) return result.user as T;
+  return result.data as T;
+}
+
+export const sellerApiService = {
+  async login(email: string, password: string): Promise<User> {
+    return sellerRequest<User>('seller_auth.php?action=login', {
+      method: 'POST',
+      body: { email, password }
+    });
+  },
+
+  async register(data: {
+    name: string;
+    shopName: string;
+    email: string;
+    phone: string;
+    address: string;
+    category: string;
+    password: string;
+  }): Promise<User> {
+    return sellerRequest<User>('seller_auth.php?action=register', { method: 'POST', body: data });
+  },
+
+  async registerCustomer(data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+  }): Promise<User> {
+    return sellerRequest<User>('seller_auth.php?action=register-customer', {
+      method: 'POST',
+      body: data
+    });
+  },
+
+  async logout(): Promise<void> {
+    await sellerRequest<void>('seller_auth.php?action=logout', { method: 'POST', body: {} });
+  },
+
+  async getProducts(): Promise<Product[]> {
+    return sellerRequest<Product[]>('seller.php?action=products');
+  },
+
+  async createProduct(data: SellerProductInput): Promise<Product> {
+    return sellerRequest<Product>('seller.php?action=products', { method: 'POST', body: data });
+  },
+
+  async updateProduct(id: number, data: SellerProductInput): Promise<Product> {
+    return sellerRequest<Product>(`seller.php?action=products&id=${id}`, { method: 'PUT', body: data });
+  },
+
+  async addVariant(productId: number, data: SellerProductInput): Promise<Product> {
+    return sellerRequest<Product>(`seller.php?action=variants&productId=${productId}`, {
+      method: 'POST',
+      body: data
+    });
+  },
+
+  async deleteProduct(id: number): Promise<void> {
+    await sellerRequest<void>(`seller.php?action=products&id=${id}`, { method: 'DELETE' });
+  },
+
+  async setFlashSale(data: {
+    productId: number;
+    enabled: boolean;
+    title?: string;
+    price?: number;
+    stockLimit?: number;
+    startTime?: string;
+    endTime?: string;
+  }): Promise<void> {
+    await sellerRequest<void>('seller.php?action=flash-sale', { method: 'POST', body: data });
+  },
+
+  async getOrders(): Promise<Order[]> {
+    return sellerRequest<Order[]>('seller.php?action=orders');
+  },
+
+  async updateOrderStatus(
+    id: number,
+    status: OrderStatus,
+    trackingNumber?: string
+  ): Promise<void> {
+    await sellerRequest<void>(`seller.php?action=orders&id=${id}`, {
+      method: 'PATCH',
+      body: { status, trackingNumber }
+    });
+  },
+
+  async getMetrics(days = 30): Promise<SellerMetrics> {
+    return sellerRequest<SellerMetrics>(`seller.php?action=dashboard&days=${days}`);
+  },
+
+  async createCustomerOrder(data: {
+    items: Array<{ variantId: number; quantity: number }>;
+    shippingAddress: Pick<UserAddress, 'recipientName' | 'phone' | 'addressLine' | 'ward' | 'district' | 'city'>;
+    paymentMethod: Order['paymentMethod'];
+  }): Promise<Order> {
+    return sellerRequest<Order>('customer_orders.php?action=create', {
+      method: 'POST',
+      body: data
+    });
   }
 };

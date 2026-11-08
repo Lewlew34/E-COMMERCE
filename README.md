@@ -16,7 +16,7 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
 - **Cơ sở dữ liệu (Database Schema):**
   - Thiết kế chuẩn 15 bảng quan hệ (`script.sql`) hỗ trợ đa biến thể, quản lý kho, flash sale và sổ địa chỉ giao hàng.
 - **Backend:**
-  - Định hướng xây dựng RESTful API bằng **PHP** (kết nối cơ sở dữ liệu và xác thực người dùng).
+  - **PHP + MySQL/MariaDB** chạy qua XAMPP, dùng session và API JSON cho đăng nhập, mua hàng và Seller Center.
 
 ---
 
@@ -50,7 +50,7 @@ E-COMMERCE/
 │       ├── routes/                     # Hệ thống định tuyến & Bảo vệ phân quyền (ProtectedRoute)
 │       ├── types/                      # Định nghĩa kiểu dữ liệu TypeScript chuẩn 1:1 với Database
 │       └── utils/                      # Hàm tiện ích (định dạng tiền tệ VNĐ, ngày tháng...)
-├── Backend/                            # Phân hệ máy chủ API (triển khai giai đoạn tiếp theo)
+├── Backend/                            # PHP API và migration MySQL cho Seller Center
 └── README.md                           # Tài liệu tổng quan dự án
 ```
 
@@ -87,14 +87,15 @@ E-COMMERCE/
   - Lưu các thiết bị quan tâm để theo dõi biến động giá, hỗ trợ 1-Click thêm vào giỏ.
 
 ### 2. Kênh Người Bán (Seller Center)
-- **Quản lý sản phẩm đa biến thể (`/seller/products`):**
-  - Hiển thị danh sách SKU, giá niêm yết, giá khuyến mãi và số lượng tồn kho từng mẫu.
-  - Modal tạo thiết bị mới: Nhập thông tin cấu hình, hãng, danh mục và khởi tạo biến thể đầu tiên.
-  - Xóa sản phẩm và cập nhật danh mục kho hàng.
+- **Quản lý sản phẩm, tồn kho và Flash Sale (`/seller/products`):**
+  - Dữ liệu sản phẩm được giới hạn theo tài khoản Seller đang đăng nhập.
+  - Thêm/sửa sản phẩm và SKU, điều chỉnh tồn kho có ghi lịch sử, ẩn sản phẩm thay vì xóa dữ liệu đơn cũ.
+  - Tạo Flash Sale có giá, thời hạn và giới hạn số lượng; sản phẩm đang khuyến mãi được phục vụ qua API công khai.
 - **Xử lý đơn hàng cửa hàng (`/seller/orders`):**
-  - Tiếp nhận đơn hàng do khách đặt theo thời gian thực.
-  - Quy trình xử lý đơn qua các bước: *Duyệt đơn $\rightarrow$ Bàn giao đơn vị vận chuyển $\rightarrow$ Đã giao xong*.
-  - Xem chi tiết từng đơn hàng và địa chỉ người nhận.
+  - Đơn checkout được lưu trong MySQL và gắn với Seller sở hữu sản phẩm.
+  - Quy trình: *Chờ xác nhận → Đã duyệt → Đang giao → Đã giao*; có thể nhập mã vận đơn.
+  - Hủy đơn chỉ hoàn tồn kho các sản phẩm của Seller đó; trạng thái Seller và lịch sử kho được lưu trong database.
+- **Dashboard và phân tích:** doanh thu đơn đã giao, trạng thái đơn, tồn kho thấp và sản phẩm bán chạy lấy từ dữ liệu thực; không có bảng đánh giá/lượt xem trong schema nên không hiển thị số giả.
 
 ### 3. Kênh Quản Trị Viên (Admin Center)
 - **Bảng điều khiển tổng quan (`/admin/dashboard`):**
@@ -132,8 +133,31 @@ Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô 
 ## 🛠️ Hướng Dẫn Khởi Chạy Dự Án
 
 ### Yêu cầu môi trường:
-- [Node.js](https://nodejs.org/) phiên bản 18+ trở lên
+- [Node.js](https://nodejs.org/) phiên bản 20.19+ hoặc 22.12+ (phù hợp Vite 8)
 - Trình quản lý gói `npm`
+- XAMPP với Apache, MySQL và PHP PDO MySQL được bật
+
+### Cấu hình Backend với XAMPP:
+1. Mở XAMPP Control Panel và khởi chạy **Apache** cùng **MySQL**.
+2. Đặt/cập nhật thư mục `Backend` của dự án tại `C:\xampp\htdocs\TechMart\Backend`. Frontend hiện gọi API tại `http://localhost/TechMart/Backend/api`.
+3. Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, rồi import `Backend/migrations/20261108_seller_center.sql` **một lần duy nhất**. Migration thêm thông tin gian hàng, quyền sở hữu sản phẩm/đơn hàng và trạng thái xử lý riêng của Seller. Không chạy lại sau khi đã import.
+4. Cấu hình kết nối MySQL mặc định nằm trong `Backend/api/_seller_common.php` (host `localhost`, database `techecommercedb`, user `root`, mật khẩu trống). Nếu cấu hình XAMPP khác, cập nhật host/user/password tại đó và trong `Backend/api/products.php`.
+5. Đăng ký tài khoản tại trang đăng ký Người bán. Các sản phẩm cũ không tự động thuộc về tài khoản mới. Để giao sản phẩm cũ cho Seller, chạy thủ công sau khi thay email và ID sản phẩm phù hợp:
+
+   ```sql
+   UPDATE products
+   SET seller_id = (SELECT id FROM users WHERE email = 'seller@example.com')
+   WHERE id IN (1, 2);
+
+   UPDATE order_items oi
+   JOIN product_variants pv ON pv.id = oi.variant_id
+   JOIN products p ON p.id = pv.product_id
+   SET oi.seller_id = p.seller_id
+   WHERE oi.seller_id IS NULL;
+   ```
+
+6. Đăng ký tài khoản khách hàng riêng để thử checkout. Đăng nhập Seller ở phiên trình duyệt này; đơn đặt cho sản phẩm đã gán Seller sẽ xuất hiện trong Seller Center. Tài khoản/demo đăng nhập cũ chạy local không tạo đơn database.
+7. Để tạo một đơn hàng thử nghiệm mà không cần thao tác checkout, chỉnh email Seller/Customer và slug sản phẩm trong `Backend/seed_seller_test.sql`, rồi chạy file đó trong phpMyAdmin. Script chỉ gán sản phẩm được chọn, tạo một đơn chờ xác nhận và trừ một sản phẩm tồn kho; chạy mỗi lần sẽ tạo thêm một đơn mới.
 
 ### Chạy phân hệ Frontend:
 ```powershell
@@ -149,12 +173,29 @@ npm run dev
 
 Ứng dụng sẽ chạy tại địa chỉ: **`http://localhost:3000`**
 
+Nếu trình duyệt dùng địa chỉ `http://127.0.0.1:3000`, thêm origin đó (và origin thực tế) vào danh sách cho phép trong `Backend/api/_seller_common.php`.
+
+### Bật live chat Tawk.to:
+1. Tạo tài khoản tại [Tawk.to](https://www.tawk.to/), tạo Property cho TechMart và thêm website đang chạy vào danh sách domain được phép nếu Tawk yêu cầu.
+2. Trong Tawk.to, mở **Administration → Channels → Chat Widget → Direct Chat Link / Widget Code** (tên mục có thể thay đổi), lấy **Property ID** và **Widget ID** trong mã nhúng.
+3. Tạo file `Frontend/.env.local` từ `Frontend/.env.example` rồi điền hai giá trị:
+
+   ```env
+   VITE_TAWK_PROPERTY_ID=your_property_id
+   VITE_TAWK_WIDGET_ID=default
+   ```
+
+4. Khởi động lại Vite (`npm run dev`). Widget live chat sẽ hiển thị ở góc dưới bên phải trên các trang mua sắm; chatbot tư vấn sản phẩm hiện có được chuyển sang góc dưới bên trái. Nếu để trống ID thì không tải script Tawk.to.
+
+Không commit `.env.local`; hai ID dùng để nhúng widget trên trình duyệt, không phải mật khẩu tài khoản Tawk.to. Cấu hình hiện kết nối mọi khách vào cùng một inbox/shop Tawk.to. Muốn mỗi gian hàng Marketplace có hộp thư riêng cần cấu hình Property hoặc cơ chế định tuyến riêng cho từng Seller.
+
 ---
 
 ## ⚡ Thanh Chuyển Vai Trò Nhanh (Role Switcher)
 
-Để hỗ trợ kiểm thử và trình diễn toàn bộ chức năng mà không cần đăng nhập lại nhiều lần, ứng dụng tích hợp thanh **Role Switcher** tại thanh thông báo đầu trang (Top Bar):
+Để trình diễn phần giao diện mẫu, ứng dụng tích hợp thanh **Role Switcher** tại thanh thông báo đầu trang (Top Bar):
 - Bấm vào nút vai trò trên cùng bên phải để chuyển ngay lập tức giữa:
   - 👤 **Khách Hàng (Customer)**: Mua sắm, giỏ hàng, thanh toán, xem đơn hàng.
   - 🏪 **Người Bán (Seller Center)**: Quản lý kho sản phẩm biến thể, duyệt đơn hàng.
   - 👑 **Quản Trị Viên (Admin Portal)**: Bảng điều khiển GMV, quản lý người dùng.
+- Đây là chuyển vai trò demo phía giao diện, không thay thế phiên PHP/MySQL và không dùng cho đơn hàng thực.

@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, User as UserIcon, Mail, Lock, Phone, MapPin, Tag, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useToast } from '../../../contexts/ToastContext';
+import { sellerApiService } from '../../../services/storageService';
 
 export const RegisterSellerPage: React.FC = () => {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     shopName: '',
@@ -14,24 +17,27 @@ export const RegisterSellerPage: React.FC = () => {
     password: '',
   });
   const { loginWithUser } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Giả lập đăng ký gian hàng thành công & chuyển vào Seller Center
-    loginWithUser({
-      id: Date.now(),
-      name: formData.name,
-      full_name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      shopName: formData.shopName,
-      role: 'staff',
-      status: 'active',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      createdAt: new Date().toISOString().split('T')[0],
-    });
-    navigate('/seller/dashboard');
+    if (formData.password.length < 8) {
+      showToast('Mật khẩu cần tối thiểu 8 ký tự.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = await sellerApiService.register(formData);
+      loginWithUser(user);
+      showToast('Đăng ký gian hàng thành công.', 'success');
+      navigate('/seller/dashboard');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể đăng ký gian hàng.', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -173,9 +179,10 @@ export const RegisterSellerPage: React.FC = () => {
 
         <button
           type="submit"
-          className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer mt-4"
+          disabled={loading}
+          className="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm shadow-lg shadow-emerald-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer mt-4 disabled:opacity-50"
         >
-          <span>Gửi hồ sơ đăng ký gian hàng</span>
+          <span>{loading ? 'Đang đăng ký...' : 'Đăng ký gian hàng'}</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </form>

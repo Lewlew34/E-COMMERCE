@@ -17,11 +17,14 @@ import { addressService, orderService } from '../../../../services/storageServic
 import type { UserAddress, PaymentMethod } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { sellerApiService } from '../../../../services/storageService';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { selectedItems, selectedSubtotal, removeFromCart } = useCart();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
@@ -91,7 +94,7 @@ export const CheckoutPage: React.FC = () => {
     showToast('Đã thêm địa chỉ giao hàng mới!', 'success');
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!selectedAddress) {
       showToast('Vui lòng chọn địa chỉ giao hàng!', 'error');
       return;
@@ -99,43 +102,33 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const orderCode = `ORD-${dateStr}-${randomSuffix}`;
+    try {
+      const databaseOrder = await sellerApiService.createCustomerOrder({
+        items: selectedItems.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
+        shippingAddress: selectedAddress,
+        paymentMethod
+      });
 
-    const newOrder = orderService.createOrder({
-      userId: 1,
-      orderCode,
-      totalAmount: selectedSubtotal,
-      shippingFee,
-      finalAmount: finalTotal,
-      paymentStatus: paymentMethod === 'BANK_TRANSFER' ? 'paid' : 'pending',
-      orderStatus: 'pending',
-      paymentMethod,
-      shippingAddressSnapshot: selectedAddress,
-      items: selectedItems.map((item, index) => ({
-        id: Date.now() + index,
-        orderId: 0,
-        variantId: item.variantId,
-        productNameSnapshot: item.product.name,
-        variantAttributesSnapshot: item.variant.attributes,
-        price: item.variant.price,
-        quantity: item.quantity,
-        totalPrice: item.variant.price * item.quantity,
-        image: item.variant.image
-      }))
-    });
+      const newOrder = orderService.createOrder({
+        userId: Number(user?.id) || 1,
+        orderCode: databaseOrder.orderCode,
+        totalAmount: databaseOrder.totalAmount,
+        shippingFee: databaseOrder.shippingFee,
+        finalAmount: databaseOrder.finalAmount,
+        paymentStatus: databaseOrder.paymentStatus,
+        orderStatus: databaseOrder.orderStatus,
+        paymentMethod: databaseOrder.paymentMethod,
+        shippingAddressSnapshot: databaseOrder.shippingAddressSnapshot,
+        items: databaseOrder.items
+      });
 
-    // Remove purchased items from cart
-    selectedItems.forEach(item => {
-      removeFromCart(item.variantId);
-    });
-
-    setTimeout(() => {
-      setIsSubmitting(false);
+      selectedItems.forEach(item => removeFromCart(item.variantId));
       navigate(`/order-success/${newOrder.orderCode}`);
-    }, 600);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể tạo đơn hàng.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

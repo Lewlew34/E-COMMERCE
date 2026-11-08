@@ -5,25 +5,36 @@ import {
   Package, 
   ShoppingBag, 
   TrendingUp, 
-  Star, 
   LogOut, 
   ExternalLink,
   PlusCircle,
-  Store,
-  Bell
+  Store
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { sellerApiService } from '../services/storageService';
+import { useToast } from '../contexts/ToastContext';
 
 export const SellerLayout: React.FC = () => {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await sellerApiService.logout();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể kết thúc phiên Seller.', 'error');
+    }
+    logout();
+    navigate('/login');
+  };
 
   const navItems = [
     { name: 'Tổng quan Shop', path: '/seller/dashboard', icon: LayoutDashboard },
     { name: 'Quản lý Sản phẩm & Kho', path: '/seller/products', icon: Package },
-    { name: 'Xử lý Đơn hàng', path: '/seller/orders', icon: ShoppingBag, badge: '3 đơn' },
-    { name: 'Doanh thu & Đánh giá', path: '/seller/analytics', icon: TrendingUp },
+    { name: 'Xử lý Đơn hàng', path: '/seller/orders', icon: ShoppingBag },
+    { name: 'Doanh thu & Phân tích', path: '/seller/analytics', icon: TrendingUp },
   ];
 
   return (
@@ -48,14 +59,10 @@ export const SellerLayout: React.FC = () => {
         {/* Shop Profile Banner */}
         <div className="p-3 bg-slate-800/60 mx-3 mt-3 rounded-xl border border-slate-700/60">
           <div className="text-xs font-bold text-white truncate">
-            {user?.shopName || 'GearZone Official Store'}
+            {user?.shopName || 'Gian hàng'}
           </div>
           <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
-            <span className="flex items-center gap-0.5 text-amber-400 font-semibold">
-              <Star className="w-3 h-3 fill-amber-400" /> 4.9/5.0
-            </span>
-            <span>•</span>
-            <span className="text-emerald-400 font-medium">Đã kích hoạt</span>
+            <span className="text-emerald-400 font-medium">Tài khoản Seller</span>
           </div>
         </div>
 
@@ -92,11 +99,6 @@ export const SellerLayout: React.FC = () => {
                   <Icon className="w-4 h-4" />
                   <span>{item.name}</span>
                 </div>
-                {item.badge && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-amber-400 text-slate-900 rounded-full">
-                    {item.badge}
-                  </span>
-                )}
               </Link>
             );
           })}
@@ -127,7 +129,7 @@ export const SellerLayout: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => { logout(); navigate('/login'); }}
+            onClick={handleLogout}
             className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded transition-colors"
             title="Đăng xuất"
           >
@@ -149,12 +151,8 @@ export const SellerLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="relative p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full"></span>
-            </button>
             <div className="text-xs text-slate-500">
-              Gian hàng: <strong className="text-emerald-700">{user?.shopName || 'GearZone Store'}</strong>
+              Gian hàng: <strong className="text-emerald-700">{user?.shopName || 'Chưa cập nhật'}</strong>
             </div>
           </div>
         </header>

@@ -22,6 +22,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { AIChatWidget } from '../components/common/AIChatWidget';
+import { TawkToChat } from '../components/common/TawkToChat';
 
 export const CustomerLayout: React.FC = () => {
   const { user, logout, isAdmin, isSeller } = useAuth();
@@ -324,8 +325,9 @@ export const CustomerLayout: React.FC = () => {
         </div>
       </footer>
 
-      {/* 5. Floating AI Chatbot for Customers */}
+      {/* Keep the local product assistant separate from the live shop inbox. */}
       <AIChatWidget />
+      <TawkToChat />
     </div>
   );
 };
