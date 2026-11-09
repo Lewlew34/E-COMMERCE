@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Package, 
@@ -11,6 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { orderService } from '../../../../services/storageService';
+import { customerOrderApi } from '../../../../api';
 import type { Order, OrderStatus } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
@@ -18,12 +19,38 @@ import { useToast } from '../../../../contexts/ToastContext';
 export const CustomerOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>(orderService.getAll());
   const [selectedFilter, setSelectedFilter] = useState<string>('ALL');
+  const [loading, setLoading] = useState<boolean>(true);
   const { showToast } = useToast();
 
-  const handleCancelOrder = (orderId: number) => {
-    orderService.updateStatus(orderId, 'cancelled');
-    setOrders(orderService.getAll());
-    showToast('Đã hủy đơn hàng thành công!', 'info');
+  const fetchOrders = async () => {
+    try {
+      const data = await customerOrderApi.getMyOrders();
+      if (Array.isArray(data)) {
+        setOrders(data);
+      }
+    } catch {
+      // Fallback về localStorage nếu chưa đăng nhập session PHP
+      setOrders(orderService.getAll());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const handleCancelOrder = async (orderId: number) => {
+    try {
+      await customerOrderApi.cancelOrder(orderId);
+      showToast('Đã hủy đơn hàng thành công!', 'info');
+      await fetchOrders();
+    } catch (err) {
+      // Nếu API không hủy được hoặc chạy offline, cập nhật tạm localStorage
+      orderService.updateStatus(orderId, 'cancelled');
+      setOrders(orderService.getAll());
+      showToast(err instanceof Error ? err.message : 'Đã cập nhật trạng thái hủy đơn.', 'info');
+    }
   };
 
   const filteredOrders = orders.filter(o => {
@@ -107,7 +134,11 @@ export const CustomerOrdersPage: React.FC = () => {
       </div>
 
       {/* Orders List */}
-      {filteredOrders.length === 0 ? (
+      {loading ? (
+        <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-sm text-slate-400">
+          Đang tải danh sách đơn hàng...
+        </div>
+      ) : filteredOrders.length === 0 ? (
         <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
           <AlertCircle className="w-10 h-10 text-slate-300 mx-auto" />
           <h3 className="text-sm font-bold text-slate-800">Không tìm thấy đơn hàng nào</h3>

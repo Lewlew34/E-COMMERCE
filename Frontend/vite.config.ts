@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: '../', // Nạp file .env từ thư mục gốc E-COMMERCE
   plugins: [
     react(),
     tailwindcss(),

@@ -1,10 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { SlidersHorizontal, Star, ShoppingCart, Heart, Eye } from 'lucide-react';
-import { productService } from '../../../../services/storageService';
+import { phpApiService } from '../../../../services/storageService';
+import type { Brand, Category, Product } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
+
+const normalizeFilterValue = (value: string | undefined) =>
+  value?.trim().toLocaleLowerCase() || '';
+
+const normalizeSearchText = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLocaleLowerCase()
+    .trim();
 
 export const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -14,38 +27,95 @@ export const CatalogPage: React.FC = () => {
   const [selectedBrandId, setSelectedBrandId] = useState<number | 'ALL'>('ALL');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>(categoryParam);
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc'>('default');
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
 
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
 
-  const allProducts = productService.getAll();
-  const brands = productService.getBrands();
-  const categories = productService.getCategories();
+  const selectedCategory = categories.find(
+    category => normalizeFilterValue(category.slug) === normalizeFilterValue(selectedCategorySlug)
+  );
+  const selectedCategoryIds = new Set<number>();
+  if (selectedCategory) {
+    selectedCategoryIds.add(selectedCategory.id);
+    let foundChild = true;
+    while (foundChild) {
+      foundChild = false;
+      categories.forEach(category => {
+        if (
+          category.parentId != null
+          && selectedCategoryIds.has(Number(category.parentId))
+          && !selectedCategoryIds.has(category.id)
+        ) {
+          selectedCategoryIds.add(category.id);
+          foundChild = true;
+        }
+      });
+    }
+  }
 
   useEffect(() => {
-    if (categoryParam) {
-      setSelectedCategorySlug(categoryParam);
-    }
+    let active = true;
+    phpApiService.getCatalogData()
+      .then(data => {
+        if (!active) return;
+        setAllProducts(data.products);
+        setBrands(data.brands);
+        setCategories(data.categories);
+      })
+      .catch(error => {
+        console.error('Không thể tải dữ liệu danh mục từ PHP API:', error);
+        if (active) {
+          setLoadError(error instanceof Error
+            ? error.message
+            : 'Không thể tải sản phẩm từ máy chủ. Hãy kiểm tra Apache, MySQL và PHP API.');
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    setSelectedCategorySlug(categoryParam);
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [categoryParam]);
 
   // Filter products
   const filtered = allProducts.filter(p => {
-    // Search query
-    if (queryParam) {
-      const matchName = p.name ? p.name.toLowerCase().includes(queryParam.toLowerCase()) : false;
-      const matchBrand = p.brand?.name ? p.brand.name.toLowerCase().includes(queryParam.toLowerCase()) : false;
-      if (!matchName && !matchBrand) return false;
+    const searchTerms = normalizeSearchText(queryParam).split(/\s+/).filter(Boolean);
+    if (searchTerms.length > 0) {
+      const searchableText = normalizeSearchText([
+        p.name,
+        p.slug,
+        p.brand?.name || '',
+        p.category?.name || '',
+        p.category?.slug || '',
+        p.description,
+        ...Object.values(p.specifications || {}).map(String),
+        ...p.variants.map(variant => variant.sku)
+      ].join(' '));
+
+      if (!searchTerms.every(term => searchableText.includes(term))) return false;
     }
 
     // Category
     if (selectedCategorySlug !== 'ALL') {
-      if (p.category?.slug !== selectedCategorySlug) return false;
+      const matchesCategory = selectedCategory
+        ? selectedCategoryIds.has(Number(p.categoryId))
+        : normalizeFilterValue(p.category?.slug) === normalizeFilterValue(selectedCategorySlug);
+      if (!matchesCategory) return false;
     }
 
     // Brand
     if (selectedBrandId !== 'ALL') {
-      if (p.brandId !== selectedBrandId) return false;
+      if (Number(p.brandId) !== selectedBrandId) return false;
     }
 
     return true;
@@ -163,7 +233,15 @@ export const CatalogPage: React.FC = () => {
 
         {/* Right: Product Grid (9 cols) */}
         <div className="lg:col-span-9">
-          {filtered.length === 0 ? (
+          {loading ? (
+            <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-sm text-slate-400">
+              Đang tải sản phẩm từ cơ sở dữ liệu...
+            </div>
+          ) : loadError ? (
+            <div className="bg-white rounded-3xl border border-red-200 p-12 text-center text-sm text-red-600">
+              {loadError}
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3">
               <h3 className="text-base font-bold text-slate-800">Không tìm thấy sản phẩm phù hợp</h3>
               <p className="text-xs text-slate-400">Vui lòng thử bỏ bớt bộ lọc hoặc tìm kiếm từ khóa khác.</p>

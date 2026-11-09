@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   Brand,
   Category,
   Product,
@@ -10,6 +10,7 @@ import type {
   InventoryLog,
   OrderStatus
 } from '../types/ecommerce.types';
+import type { User } from '../types/auth.types';
 import {
   INITIAL_BRANDS,
   INITIAL_CATEGORIES,
@@ -51,7 +52,7 @@ function setStored<T>(key: string, value: T): void {
 }
 
 // ==========================================
-// 1. PRODUCTS & CATALOG
+// 1. PRODUCTS & CATALOG (LocalStorage Fallback & Admin)
 // ==========================================
 export const productService = {
   getAll(): Product[] {
@@ -78,7 +79,7 @@ export const productService = {
   getVariantById(variantId: number): { product: Product; variant: ProductVariant } | null {
     const products = this.getAll();
     for (const p of products) {
-      const variant = p.variants.find(v => v.id === variantId);
+      const variant = p.variants?.find(v => v.id === variantId);
       if (variant) {
         return { product: p, variant };
       }
@@ -137,7 +138,6 @@ export const productService = {
       p.flashSaleStartTime = config.startTime;
       p.flashSaleEndTime = config.endTime;
 
-      // Sync primary variant prices
       if (p.variants && p.variants.length > 0) {
         p.variants = p.variants.map((v, idx) => {
           if (idx === 0) {
@@ -279,7 +279,6 @@ export const orderService = {
     orders.unshift(newOrder);
     setStored(STORAGE_KEYS.ORDERS, orders);
 
-    // Record inventory log and deduct stock
     orderData.items.forEach(item => {
       const match = productService.getVariantById(item.variantId);
       if (match) {
@@ -403,5 +402,141 @@ export const inventoryService = {
     const logs = this.getLogs();
     logs.unshift(log);
     setStored(STORAGE_KEYS.INVENTORY_LOGS, logs);
+  }
+};
+// ==========================================
+// 6. LỚP CHUYỂN TIẾP SANG TẦNG API CHIA THEO ROLE (src/api/)
+// ==========================================
+import {
+  catalogApi,
+  authApi,
+  sellerProductApi,
+  sellerOrderApi,
+  sellerMetricsApi,
+  customerOrderApi
+} from '../api';
+
+export type { SellerProductInput } from '../api';
+export type { SellerMetrics } from '../api';
+
+export const phpApiService = {
+  async getCatalogLookups(): Promise<{ brands: Brand[]; categories: Category[] }> {
+    const [brands, categories] = await Promise.all([
+      catalogApi.getBrands(),
+      catalogApi.getCategories()
+    ]);
+    return { brands, categories };
+  },
+
+  async getHomeProducts(): Promise<Product[]> {
+    try {
+      const products = await catalogApi.getProducts(8);
+      products.forEach(product => productService.saveProduct(product));
+      return products;
+    } catch (error) {
+      console.warn("Không thể nối tới PHP API, chuyển sang mockData LocalStorage:", error);
+      return [];
+    }
+  },
+
+  async getCatalogData(): Promise<{ products: Product[]; brands: Brand[]; categories: Category[] }> {
+    const [brands, categories, products] = await Promise.all([
+      catalogApi.getBrands(),
+      catalogApi.getCategories(),
+      catalogApi.getProducts(60)
+    ]);
+    products.forEach(product => productService.saveProduct(product));
+    return { products, brands, categories };
+  }
+};
+
+export const sellerApiService = {
+  async login(email: string, password: string): Promise<User> {
+    return authApi.login(email, password);
+  },
+
+  async register(data: {
+    name: string;
+    shopName: string;
+    email: string;
+    phone: string;
+    address: string;
+    category: string;
+    password: string;
+  }): Promise<User> {
+    return authApi.registerSeller(data);
+  },
+
+  async registerCustomer(data: {
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+  }): Promise<User> {
+    return authApi.registerCustomer(data);
+  },
+
+  async logout(): Promise<void> {
+    return authApi.logout();
+  },
+
+  async getProducts(): Promise<Product[]> {
+    return sellerProductApi.getProducts();
+  },
+
+  async createProduct(data: import('../api').SellerProductInput): Promise<Product> {
+    return sellerProductApi.createProduct(data);
+  },
+
+  async updateProduct(id: number, data: import('../api').SellerProductInput): Promise<Product> {
+    return sellerProductApi.updateProduct(id, data);
+  },
+
+  async addVariant(productId: number, data: import('../api').SellerProductInput): Promise<Product> {
+    await sellerProductApi.addVariant(productId, data);
+    const products = await sellerProductApi.getProducts();
+    const updated = products.find(p => p.id === productId);
+    if (!updated) throw new Error('Không tìm thấy sản phẩm sau khi thêm biến thể.');
+    return updated;
+  },
+
+  async deleteProduct(id: number): Promise<void> {
+    return sellerProductApi.deleteProduct(id);
+  },
+
+  async setFlashSale(data: {
+    productId: number;
+    enabled: boolean;
+    title?: string;
+    price?: number;
+    stockLimit?: number;
+    startTime?: string;
+    endTime?: string;
+  }): Promise<void> {
+    return sellerMetricsApi.setFlashSale(data);
+  },
+
+  async getOrders(): Promise<Order[]> {
+    return sellerOrderApi.getOrders();
+  },
+
+  async updateOrderStatus(
+    id: number,
+    status: OrderStatus,
+    trackingNumber?: string
+  ): Promise<void> {
+    return sellerOrderApi.updateOrderStatus(id, status, trackingNumber);
+  },
+
+  async getMetrics(days = 30): Promise<import('../api').SellerMetrics> {
+    return sellerMetricsApi.getMetrics(days);
+  },
+
+  async createCustomerOrder(data: {
+    items: Array<{ variantId: number; quantity: number }>;
+    shippingAddress: Pick<UserAddress, 'recipientName' | 'phone' | 'addressLine' | 'ward' | 'district' | 'city'>;
+    paymentMethod: Order['paymentMethod'];
+  }): Promise<Order> {
+    return customerOrderApi.createOrder(data);
   }
 };

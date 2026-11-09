@@ -16,6 +16,7 @@ import {
   Plus
 } from 'lucide-react';
 import { productService } from '../../../../services/storageService';
+import { catalogApi } from '../../../../api';
 import type { Product, ProductVariant } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useCart } from '../../../../contexts/CartContext';
@@ -39,15 +40,31 @@ export const ProductDetailPage: React.FC = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
     const productId = Number(id);
-    const foundProduct = productService.getById(productId) || productService.getAll()[0];
-    
-    if (foundProduct) {
-      setProduct(foundProduct);
-      if (foundProduct.variants && foundProduct.variants.length > 0) {
-        setSelectedVariant(foundProduct.variants[0]);
-        setActiveImage(foundProduct.variants[0].image);
+    let active = true;
+
+    catalogApi.getProductDetail(productId).then(apiProduct => {
+      if (!active) return;
+      const foundProduct = apiProduct || productService.getById(productId) || productService.getAll()[0];
+      if (foundProduct) {
+        setProduct(foundProduct);
+        if (foundProduct.variants && foundProduct.variants.length > 0) {
+          setSelectedVariant(foundProduct.variants[0]);
+          setActiveImage(foundProduct.variants[0].image);
+        }
       }
-    }
+    }).catch(() => {
+      if (!active) return;
+      const fallback = productService.getById(productId) || productService.getAll()[0];
+      if (fallback) {
+        setProduct(fallback);
+        if (fallback.variants && fallback.variants.length > 0) {
+          setSelectedVariant(fallback.variants[0]);
+          setActiveImage(fallback.variants[0].image);
+        }
+      }
+    });
+
+    return () => { active = false; };
   }, [id]);
 
   if (!product || !selectedVariant) {

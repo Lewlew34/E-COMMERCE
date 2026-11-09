@@ -18,11 +18,14 @@ import { addressService, orderService } from '../../../../services/storageServic
 import type { UserAddress, PaymentMethod } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { sellerApiService } from '../../../../services/storageService';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { selectedItems, selectedSubtotal, removeFromCart } = useCart();
   const { showToast } = useToast();
+  const { user } = useAuth();
 
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
@@ -94,7 +97,7 @@ export const CheckoutPage: React.FC = () => {
     showToast('Đã thêm địa chỉ giao hàng mới!', 'success');
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (!selectedAddress) {
       showToast('Vui lòng chọn địa chỉ giao hàng!', 'error');
       return;
@@ -102,11 +105,14 @@ export const CheckoutPage: React.FC = () => {
 
     setIsSubmitting(true);
 
-    const now = new Date();
-    const dateStr = now.toISOString().slice(0, 10).replace(/-/g, '');
-    const randomSuffix = Math.floor(100 + Math.random() * 900);
-    const orderCode = `ORD-${dateStr}-${randomSuffix}`;
+    try {
+      const databaseOrder = await sellerApiService.createCustomerOrder({
+        items: selectedItems.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
+        shippingAddress: selectedAddress,
+        paymentMethod
+      });
 
+<<<<<<< HEAD
     const actualPaymentMethod: PaymentMethod = paymentMethod === 'VNPAY' ? 'BANK_TRANSFER' : paymentMethod;
 
     const newOrder = orderService.createOrder({
@@ -131,16 +137,28 @@ export const CheckoutPage: React.FC = () => {
         image: item.variant.image
       }))
     });
+=======
+      const newOrder = orderService.createOrder({
+        userId: Number(user?.id) || 1,
+        orderCode: databaseOrder.orderCode,
+        totalAmount: databaseOrder.totalAmount,
+        shippingFee: databaseOrder.shippingFee,
+        finalAmount: databaseOrder.finalAmount,
+        paymentStatus: databaseOrder.paymentStatus,
+        orderStatus: databaseOrder.orderStatus,
+        paymentMethod: databaseOrder.paymentMethod,
+        shippingAddressSnapshot: databaseOrder.shippingAddressSnapshot,
+        items: databaseOrder.items
+      });
+>>>>>>> e6785b6b63933606a38e724a46e711bd144d9d8b
 
-    // Remove purchased items from cart
-    selectedItems.forEach(item => {
-      removeFromCart(item.variantId);
-    });
-
-    setTimeout(() => {
-      setIsSubmitting(false);
+      selectedItems.forEach(item => removeFromCart(item.variantId));
       navigate(`/order-success/${newOrder.orderCode}`);
-    }, 600);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể tạo đơn hàng.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -105,6 +105,7 @@ export interface Order {
   paymentMethod: PaymentMethod;
   shippingAddressSnapshot: UserAddress;
   items: OrderItem[];
+  sellerTrackingNumber?: string;
   createdAt: string;
   updatedAt: string;
 }

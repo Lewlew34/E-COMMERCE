@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   ShoppingBag, 
   Clock, 
@@ -10,25 +10,41 @@ import {
   Eye,
   Check
 } from 'lucide-react';
-import { orderService } from '../../../../services/storageService';
+import { sellerApiService } from '../../../../services/storageService';
 import type { Order, OrderStatus } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
 
 export const SellerOrdersPage: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>(orderService.getAll());
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const { showToast } = useToast();
 
-  const handleUpdateStatus = (orderId: number, nextStatus: OrderStatus) => {
-    orderService.updateStatus(orderId, nextStatus);
-    const updated = orderService.getAll();
+  const refreshOrders = async () => {
+    const updated = await sellerApiService.getOrders();
     setOrders(updated);
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder(updated.find(o => o.id === orderId) || null);
+    if (selectedOrder) {
+      setSelectedOrder(updated.find(order => order.id === selectedOrder.id) || null);
     }
-    showToast(`Đã chuyển đơn hàng sang trạng thái "${nextStatus.toUpperCase()}"`, 'success');
+  };
+
+  useEffect(() => {
+    sellerApiService.getOrders()
+      .then(setOrders)
+      .catch(error => showToast(error instanceof Error ? error.message : 'Không tải được đơn hàng.', 'error'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleUpdateStatus = async (orderId: number, nextStatus: OrderStatus) => {
+    try {
+      await sellerApiService.updateOrderStatus(orderId, nextStatus);
+      await refreshOrders();
+      showToast(`Đã chuyển đơn hàng sang trạng thái "${nextStatus.toUpperCase()}".`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không cập nhật được đơn hàng.', 'error');
+    }
   };
 
   const filteredOrders = orders.filter(o => {
@@ -95,10 +111,12 @@ export const SellerOrdersPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length === 0 ? (
+              {loading ? (
+                <tr><td colSpan={6} className="py-8 text-center text-slate-400">Đang tải đơn hàng từ database...</td></tr>
+              ) : filteredOrders.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-8 text-center text-slate-400">
-                    Không có đơn hàng nào trong trạng thái này
+                    Chưa có đơn hàng của gian hàng ở trạng thái này.
                   </td>
                 </tr>
               ) : (
@@ -157,10 +175,30 @@ export const SellerOrdersPage: React.FC = () => {
 
                         {order.orderStatus === 'confirmed' && (
                           <button
-                            onClick={() => handleUpdateStatus(order.id, 'shipping')}
+                            onClick={() => {
+                              const trackingNumber = window.prompt('Nhập mã vận đơn (để trống nếu chưa có):');
+                              if (trackingNumber === null) return;
+                              void sellerApiService.updateOrderStatus(order.id, 'shipping', trackingNumber.trim())
+                                .then(refreshOrders)
+                                .then(() => showToast('Đã bàn giao đơn cho đơn vị vận chuyển.', 'success'))
+                                .catch(error => showToast(error instanceof Error ? error.message : 'Không cập nhật được đơn.', 'error'));
+                            }}
                             className="px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[11px] cursor-pointer"
                           >
                             Giao cho bưu tá
+                          </button>
+                        )}
+
+                        {(order.orderStatus === 'pending' || order.orderStatus === 'confirmed') && (
+                          <button
+                            onClick={() => {
+                              if (window.confirm(`Hủy đơn ${order.orderCode}? Tồn kho sản phẩm của shop sẽ được hoàn lại.`)) {
+                                void handleUpdateStatus(order.id, 'cancelled');
+                              }
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 font-bold text-[11px] cursor-pointer"
+                          >
+                            Hủy đơn
                           </button>
                         )}
 
@@ -212,6 +250,12 @@ export const SellerOrdersPage: React.FC = () => {
                 <strong className="text-slate-800">Hình thức thanh toán: </strong>
                 {selectedOrder.paymentMethod}
               </div>
+              {selectedOrder.sellerTrackingNumber && (
+                <div>
+                  <strong className="text-slate-800">Mã vận đơn: </strong>
+                  {selectedOrder.sellerTrackingNumber}
+                </div>
+              )}
             </div>
 
             <div className="pt-2 border-t border-slate-100">

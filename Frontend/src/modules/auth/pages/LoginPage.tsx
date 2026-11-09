@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
+import { sellerApiService } from '../../../services/storageService';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -12,7 +13,9 @@ export const LoginPage: React.FC = () => {
   const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const { loginWithUser } = useAuth();
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       showToast('Vui lòng nhập đầy đủ Email và Mật khẩu!', 'error');
@@ -20,25 +23,31 @@ export const LoginPage: React.FC = () => {
     }
 
     setLoading(true);
-    const result = login(email, password);
+    try {
+      const databaseUser = await sellerApiService.login(email, password);
+      loginWithUser(databaseUser);
+      showToast(`Đăng nhập thành công! Chào mừng ${databaseUser.name}`, 'success');
+
+      const roleLower = String(databaseUser.role).toLowerCase();
+      if (roleLower === 'admin') navigate('/admin/dashboard', { replace: true });
+      else if (roleLower === 'staff' || roleLower === 'seller') navigate('/seller/dashboard', { replace: true });
+      else navigate('/', { replace: true });
+    } catch (error) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const isDemoAccount = ['admin@techmart.vn', 'khachhang@techstore.vn'].includes(normalizedEmail);
+      if (isDemoAccount && password === '123456') {
+        const result = login(email, password);
+        if (result.success && result.user) {
+          showToast(`Đăng nhập demo thành công! Chào mừng ${result.user.name}`, 'success');
+          navigate(String(result.user.role).toLowerCase() === 'admin' ? '/admin/dashboard' : '/', { replace: true });
+          setLoading(false);
+          return;
+        }
+      } else {
+        showToast(error instanceof Error ? error.message : 'Đăng nhập thất bại.', 'error');
+      }
+    }
     setLoading(false);
-
-    if (!result.success || !result.user) {
-      showToast(result.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin!', 'error');
-      return;
-    }
-
-    showToast(`Đăng nhập thành công! Chào mừng ${result.user.name}`, 'success');
-
-    const roleLower = String(result.user.role).toLowerCase();
-    // Route based on role: Luôn đưa về trang khởi điểm chuẩn xác
-    if (roleLower === 'admin') {
-      navigate('/admin/dashboard', { replace: true });
-    } else if (roleLower === 'staff' || roleLower === 'seller') {
-      navigate('/seller/dashboard', { replace: true });
-    } else {
-      navigate('/', { replace: true });
-    }
   };
 
   const handleFillDemo = (demoEmail: string) => {
@@ -129,13 +138,13 @@ export const LoginPage: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => handleFillDemo('seller@gearzone.vn')}
+            onClick={() => { navigate('/seller/register'); }}
             className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
           >
             <div>
-              <span className="text-emerald-400 font-bold">Seller:</span> seller@gearzone.vn
+              <span className="text-emerald-400 font-bold">Seller:</span> Tạo tài khoản Seller
             </div>
-            <span className="text-[10px] text-slate-400">Pass: 123456</span>
+            <span className="text-[10px] text-slate-400">Đăng ký qua SQL</span>
           </button>
 
           <button

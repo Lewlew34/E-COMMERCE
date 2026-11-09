@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
 import { DEMO_USERS } from '../../../../services/mockData/demoUsers';
+import { adminUserApi } from '../../../../api';
 import type { User, UserRole, UserStatus } from '../../../../types/auth.types';
 import { useToast } from '../../../../contexts/ToastContext';
 
@@ -10,29 +11,53 @@ export const AdminUsersPage: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<'ALL' | string>('ALL');
   const { showToast } = useToast();
 
-  const handleToggleStatus = (id: string | number) => {
-    setUsers(prev =>
-      prev.map(u => {
-        if (u.id === id) {
-          const nextStatus: UserStatus = u.status === 'banned' ? 'active' : 'banned';
-          showToast(`Đã ${nextStatus === 'banned' ? 'khóa' : 'mở khóa'} tài khoản ${u.name}!`, nextStatus === 'banned' ? 'error' : 'success');
-          return { ...u, status: nextStatus };
+  useEffect(() => {
+    adminUserApi.getUsers()
+      .then(dbUsers => {
+        if (Array.isArray(dbUsers) && dbUsers.length > 0) {
+          setUsers(dbUsers);
         }
-        return u;
       })
+      .catch(() => {
+        // Fallback về demo users nếu chưa đăng nhập admin trên PHP session
+      });
+  }, []);
+
+  const handleToggleStatus = async (id: string | number) => {
+    const target = users.find(u => u.id === id);
+    if (!target) return;
+    const nextStatus: UserStatus = target.status === 'banned' ? 'active' : 'banned';
+
+    try {
+      if (typeof id === 'number') {
+        await adminUserApi.updateUserStatus(id, nextStatus);
+      }
+    } catch {
+      // Offline fallback
+    }
+
+    setUsers(prev =>
+      prev.map(u => (u.id === id ? { ...u, status: nextStatus } : u))
     );
+    showToast(`Đã ${nextStatus === 'banned' ? 'khóa' : 'mở khóa'} tài khoản ${target.name}!`, nextStatus === 'banned' ? 'error' : 'success');
   };
 
-  const handleChangeRole = (id: string | number, newRole: UserRole) => {
+  const handleChangeRole = async (id: string | number, newRole: UserRole) => {
+    const target = users.find(u => u.id === id);
+    if (!target) return;
+
+    try {
+      if (typeof id === 'number') {
+        await adminUserApi.updateUserRole(id, newRole);
+      }
+    } catch {
+      // Offline fallback
+    }
+
     setUsers(prev =>
-      prev.map(u => {
-        if (u.id === id) {
-          showToast(`Đã chuyển vai trò của ${u.name} thành ${newRole}!`, 'info');
-          return { ...u, role: newRole };
-        }
-        return u;
-      })
+      prev.map(u => (u.id === id ? { ...u, role: newRole } : u))
     );
+    showToast(`Đã chuyển vai trò của ${target.name} thành ${newRole}!`, 'info');
   };
 
   const filtered = users.filter(u => {

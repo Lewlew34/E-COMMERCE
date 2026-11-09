@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Package, 
@@ -15,10 +15,11 @@ import {
   Percent, 
   Sparkles, 
   X,
-  Eye
+  Eye,
+  Pencil
 } from 'lucide-react';
-import { productService } from '../../../../services/storageService';
-import type { Product } from '../../../../types/ecommerce.types';
+import { phpApiService, productService, sellerApiService } from '../../../../services/storageService';
+import type { Brand, Category, Product } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
 
@@ -46,12 +47,15 @@ const formatDisplayDate = (dateStr?: string): string => {
 };
 
 export const SellerProductsPage: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(productService.getAll());
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<number | null>(null);
+  const [editingVariantId, setEditingVariantId] = useState<number | null>(null);
   const { showToast } = useToast();
 
-  const brands = productService.getBrands();
-  const categories = productService.getCategories();
+  const [brands, setBrands] = useState<Brand[]>(productService.getBrands());
+  const [categories, setCategories] = useState<Category[]>(productService.getCategories());
 
   // Flash Sale Modal states
   const [flashSaleModalOpen, setFlashSaleModalOpen] = useState(false);
@@ -74,74 +78,136 @@ export const SellerProductsPage: React.FC = () => {
   const [variantAttr, setVariantAttr] = useState('Tiêu chuẩn');
   const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800');
 
+  const refreshProducts = async () => {
+    const data = await sellerApiService.getProducts();
+    setProducts(data.filter(product => product.status !== 'archived'));
+  };
+
+  useEffect(() => {
+    Promise.all([sellerApiService.getProducts(), phpApiService.getCatalogLookups()])
+      .then(([data, lookups]) => {
+        setProducts(data.filter(product => product.status !== 'archived'));
+        setBrands(lookups.brands);
+        setCategories(lookups.categories);
+      })
+      .catch(error => showToast(error instanceof Error ? error.message : 'Không tải được dữ liệu Seller.', 'error'))
+      .finally(() => setLoading(false));
+  }, []);
+
   // Currently selected product for Flash Sale modal
   const targetProduct = products.find(p => p.id === selectedProductId) || products[0];
 
-  const handleDelete = (id: number) => {
-    const targetProd = products.find(p => p.id === id);
-    const prodName = targetProd ? targetProd.name : 'này';
-    
-    // Hộp thoại hỏi xác nhận trước khi xóa theo yêu cầu
-    const isConfirmed = window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${prodName}" không?`);
-    
-    if (isConfirmed) {
-      productService.deleteProduct(id);
-      setProducts(productService.getAll());
-      showToast('Đã xóa sản phẩm khỏi gian hàng', 'info');
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Ẩn sản phẩm khỏi gian hàng? Đơn hàng cũ vẫn được giữ lại.')) return;
+    try {
+      await sellerApiService.deleteProduct(id);
+      await refreshProducts();
+      showToast('Đã ẩn sản phẩm khỏi gian hàng.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể ẩn sản phẩm.', 'error');
     }
   };
 
-  const handleCreateProduct = (e: React.FormEvent) => {
+  const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !sku.trim()) {
       showToast('Vui lòng nhập tên sản phẩm và mã SKU!', 'error');
       return;
     }
 
-    const newId = Date.now();
-    const newProduct: Product = {
-      id: newId,
-      name,
-      slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      brandId: Number(brandId),
-      categoryId: Number(categoryId),
-      description,
-      status: 'active',
-      rating: 5.0,
-      reviewCount: 0,
-      soldCount: 0,
-      specifications: {
-        'Bảo hành': '24 tháng chính hãng',
-        'Tình trạng': 'Mới 100% nguyên seal'
-      },
-      variants: [
-        {
-          id: Date.now() + 1,
-          productId: newId,
-          sku,
-          price: Number(price),
-          compareAtPrice: Number(comparePrice),
-          stockQuantity: Number(stock),
-          attributes: { 'Phiên bản': variantAttr },
-          image: imageUrl
-        }
-      ]
-    };
+    try {
+      const payload = {
+        ...(editingVariantId ? { variantId: editingVariantId } : {}),
+        name: name.trim(),
+        brandId: Number(brandId),
+        categoryId: Number(categoryId),
+        description,
+        sku: sku.trim(),
+        price: Number(price),
+        comparePrice: Number(comparePrice) || null,
+        stock: Number(stock),
+        variantAttr,
+        image: imageUrl
+      };
+      if (editingProductId) {
+        await sellerApiService.updateProduct(editingProductId, payload);
+        showToast(`Đã cập nhật sản phẩm "${name}".`, 'success');
+      } else {
+        await sellerApiService.createProduct(payload);
+        showToast(`Đã thêm sản phẩm "${name}" vào database.`, 'success');
+      }
+      await refreshProducts();
+      setShowAddModal(false);
+      setEditingProductId(null);
+      setEditingVariantId(null);
+      setName('');
+      setSku('');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể lưu sản phẩm.', 'error');
+    }
+  };
 
-    productService.saveProduct(newProduct);
-    setProducts(productService.getAll());
-    setShowAddModal(false);
-    showToast(`Đã thêm thiết bị "${name}" thành công!`, 'success');
+  const openProductEditor = (product: Product) => {
+    const variant = product.variants[0];
+    setEditingProductId(product.id);
+    setEditingVariantId(variant?.id ?? null);
+    setName(product.name);
+    setBrandId(product.brandId);
+    setCategoryId(product.categoryId);
+    setDescription(product.description || '');
+    setSku(variant?.sku || '');
+    setPrice(variant?.price || 0);
+    setComparePrice(variant?.compareAtPrice || 0);
+    setStock(variant?.stockQuantity || 0);
+    setVariantAttr(Object.values(variant?.attributes || {}).join(', ') || 'Tiêu chuẩn');
+    setImageUrl(variant?.image || '');
+    setShowAddModal(true);
+  };
 
-    // Reset fields
-    setName('');
-    setSku('');
+  const selectEditingVariant = (variantId: number) => {
+    const product = products.find(item => item.id === editingProductId);
+    const variant = product?.variants.find(item => item.id === variantId);
+    if (!variant) return;
+    setEditingVariantId(variant.id);
+    setSku(variant.sku);
+    setPrice(variant.price);
+    setComparePrice(variant.compareAtPrice || 0);
+    setStock(variant.stockQuantity);
+    setVariantAttr(Object.values(variant.attributes || {}).join(', ') || 'Tiêu chuẩn');
+    setImageUrl(variant.image || '');
+  };
+
+  const handleAddVariant = async () => {
+    if (!editingProductId || !sku.trim()) {
+      showToast('Vui lòng nhập mã SKU cho biến thể mới.', 'error');
+      return;
+    }
+    try {
+      const saved = await sellerApiService.addVariant(editingProductId, {
+        name: name.trim(),
+        brandId: Number(brandId),
+        categoryId: Number(categoryId),
+        description,
+        sku: sku.trim(),
+        price: Number(price),
+        comparePrice: Number(comparePrice) || null,
+        stock: Number(stock),
+        variantAttr,
+        image: imageUrl
+      });
+      setProducts(current => current.map(item => item.id === saved.id ? saved : item));
+      const addedVariant = saved.variants.find(variant => variant.sku === sku.trim());
+      if (addedVariant) setEditingVariantId(addedVariant.id);
+      showToast('Đã thêm biến thể vào database.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể thêm biến thể.', 'error');
+    }
   };
 
   // Open Flash Sale Modal for a specific product
   const openFlashSaleModal = (p: Product) => {
     setSelectedProductId(p.id);
-    setFsEnabled(p.isFlashSale ?? true);
+    setFsEnabled(p.isFlashSale ?? false);
     
     // Set base price
     const currentPrice = p.variants[0]?.price || 10000000;
@@ -172,7 +238,7 @@ export const SellerProductsPage: React.FC = () => {
     const prod = products.find(p => p.id === prodId);
     if (!prod) return;
     setSelectedProductId(prodId);
-    setFsEnabled(prod.isFlashSale ?? true);
+    setFsEnabled(prod.isFlashSale ?? false);
 
     const currentPrice = prod.variants[0]?.price || 10000000;
     const currentCompare = prod.variants[0]?.compareAtPrice;
@@ -196,7 +262,7 @@ export const SellerProductsPage: React.FC = () => {
   const computedSavings = fsOriginalPrice - computedFlashSalePrice;
 
   // Save Flash Sale settings
-  const handleSaveFlashSale = (e: React.FormEvent) => {
+  const handleSaveFlashSale = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProductId) return;
 
@@ -215,35 +281,37 @@ export const SellerProductsPage: React.FC = () => {
       }
     }
 
-    productService.updateProductFlashSale(selectedProductId, {
-      isFlashSale: fsEnabled,
-      originalPrice: fsOriginalPrice,
-      discountPercent: fsDiscountPercent,
-      flashSalePrice: computedFlashSalePrice,
-      startTime: fsStartTime,
-      endTime: fsEndTime
-    });
-
-    setProducts(productService.getAll());
-    setFlashSaleModalOpen(false);
-
-    if (fsEnabled) {
-      showToast(`Đã bật Flash Sale (-${fsDiscountPercent}%) cho "${targetProduct?.name}"!`, 'success');
-    } else {
-      showToast(`Đã tắt Flash Sale cho "${targetProduct?.name}"!`, 'info');
+    try {
+      await sellerApiService.setFlashSale({
+        productId: selectedProductId,
+        enabled: fsEnabled,
+        title: `Flash Sale - ${targetProduct?.name || 'Sản phẩm'}`,
+        price: computedFlashSalePrice,
+        stockLimit: targetProduct?.variants[0]?.stockQuantity || 1,
+        startTime: fsStartTime,
+        endTime: fsEndTime
+      });
+      await refreshProducts();
+      setFlashSaleModalOpen(false);
+      showToast(fsEnabled
+        ? `Đã lưu Flash Sale cho "${targetProduct?.name}".`
+        : 'Đã tắt Flash Sale cho sản phẩm.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể lưu Flash Sale.', 'error');
     }
   };
 
   // Quick turn off Flash Sale
-  const handleDisableFlashSale = () => {
+  const handleDisableFlashSale = async () => {
     if (!selectedProductId) return;
-    productService.updateProductFlashSale(selectedProductId, {
-      isFlashSale: false,
-      originalPrice: fsOriginalPrice
-    });
-    setProducts(productService.getAll());
-    setFlashSaleModalOpen(false);
-    showToast(`Đã gỡ sản phẩm khỏi chương trình Flash Sale!`, 'info');
+    try {
+      await sellerApiService.setFlashSale({ productId: selectedProductId, enabled: false });
+      await refreshProducts();
+      setFlashSaleModalOpen(false);
+      showToast('Đã gỡ sản phẩm khỏi chương trình Flash Sale.', 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể tắt Flash Sale.', 'error');
+    }
   };
 
   // Quick preset duration adder
@@ -303,7 +371,11 @@ export const SellerProductsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {products.map(p => {
+              {loading ? (
+                <tr><td colSpan={7} className="py-10 text-center text-slate-400">Đang tải sản phẩm từ database...</td></tr>
+              ) : products.length === 0 ? (
+                <tr><td colSpan={7} className="py-10 text-center text-slate-400">Chưa có sản phẩm thuộc gian hàng. Hãy thêm sản phẩm mới.</td></tr>
+              ) : products.map(p => {
                 const totalStock = p.variants.reduce((sum, v) => sum + v.stockQuantity, 0);
 
                 // Flash sale logic for current row
@@ -456,9 +528,16 @@ export const SellerProductsPage: React.FC = () => {
                       )}
                     </td>
 
-                    {/* 7. Action View & Delete */}
+                    {/* 7. Product actions */}
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openProductEditor(p)}
+                          className="p-1.5 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 text-slate-400 transition-colors cursor-pointer"
+                          title="Chỉnh sửa sản phẩm và tồn kho"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
                         <Link
                           to={`/product/${p.id}`}
                           className="p-1.5 hover:text-blue-600 rounded-lg hover:bg-blue-50 text-slate-400 transition-colors inline-flex items-center"
@@ -469,7 +548,7 @@ export const SellerProductsPage: React.FC = () => {
                         <button
                           onClick={() => handleDelete(p.id)}
                           className="p-1.5 hover:text-red-600 rounded-lg hover:bg-red-50 text-slate-400 transition-colors cursor-pointer"
-                          title="Xóa thiết bị"
+                          title="Ẩn sản phẩm"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -692,41 +771,51 @@ export const SellerProductsPage: React.FC = () => {
                           type="button"
                           key={preset.label}
                           onClick={() => handleSetDurationHours(preset.h)}
-                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-medium transition-colors cursor-pointer shadow-2xs"
+                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-rose-400 hover:text-rose-600 font-medium transition-colors cursor-pointer"
                         >
                           {preset.label}
                         </button>
                       ))}
                     </div>
                   </div>
+
+                  {/* Customer Preview Snapshot */}
+                  <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong className="font-bold">Đồng bộ tự động:</strong> Khi bạn bấm lưu, giá bán <strong className="text-rose-700">{formatCurrencyVN(computedFlashSalePrice)}</strong> kèm tag giảm giá <strong className="text-rose-700">-{fsDiscountPercent}%</strong> sẽ được áp dụng ngay lập tức tại mục Flash Sale Trang Chủ và Chi Tiết Sản Phẩm cho khách hàng.
+                    </div>
+                  </div>
                 </div>
               )}
 
-              {/* Modal Actions */}
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
                 {targetProduct.isFlashSale ? (
                   <button
                     type="button"
                     onClick={handleDisableFlashSale}
-                    className="px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-xs transition-colors cursor-pointer"
+                    className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-bold cursor-pointer transition-colors"
                   >
-                    Gỡ Flash Sale
+                    Gỡ khỏi Flash Sale
                   </button>
-                ) : <div />}
+                ) : (
+                  <div></div>
+                )}
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setFlashSaleModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
                   >
-                    Hủy bỏ
+                    Hủy
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer shadow-md transition-colors"
                   >
-                    Lưu Cấu Hình Flash Sale
+                    Lưu cấu hình Flash Sale
                   </button>
                 </div>
               </div>
@@ -735,45 +824,35 @@ export const SellerProductsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 4. Modal: ADD NEW PRODUCT */}
+      {/* 4. Modal: CREATE / EDIT PRODUCT */}
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <PlusCircle className="w-5 h-5 text-emerald-600" /> Thêm Thiết Bị Công Nghệ Mới
-                </h3>
-                <p className="text-xs text-slate-500">Khai báo thông số kỹ thuật và mã SKU vào gian hàng</p>
-              </div>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Cpu className="w-5 h-5 text-emerald-600" />
+              {editingProductId ? 'Chỉnh Sửa Sản Phẩm' : 'Thêm Thiết Bị Công Nghệ Mới'}
+            </h3>
 
             <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Tên thiết bị / sản phẩm (*):</label>
+                <label className="block text-slate-700 font-semibold mb-1">Tên sản phẩm thiết bị</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Laptop Gaming ASUS ROG Strix..."
+                  placeholder="Ví dụ: Bàn Phím Cơ Không Dây ROG Azoth 75%"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Hãng sản xuất:</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Thương hiệu</label>
                   <select
                     value={brandId}
                     onChange={(e) => setBrandId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     {brands.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
@@ -782,11 +861,11 @@ export const SellerProductsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Ngành hàng:</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Danh mục</label>
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -795,106 +874,126 @@ export const SellerProductsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Mã SKU phiên bản (*):</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="VD: G513QR-RTX3070"
-                    value={sku}
-                    onChange={(e) => setSku(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Tên phiên bản / Cấu hình:</label>
-                  <input
-                    type="text"
-                    placeholder="VD: 16GB / 512GB SSD"
-                    value={variantAttr}
-                    onChange={(e) => setVariantAttr(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Giá bán (VNĐ):</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100000}
-                    required
-                    value={price}
-                    onChange={(e) => setPrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-blue-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Giá niêm yết:</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step={100000}
-                    required
-                    value={comparePrice}
-                    onChange={(e) => setComparePrice(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Kho tồn:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    required
-                    value={stock}
-                    onChange={(e) => setStock(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Link ảnh minh họa (URL):</label>
-                <input
-                  type="url"
-                  required
-                  value={imageUrl}
-                  onChange={(e) => setImageUrl(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-slate-600 font-mono text-[11px] focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-700 font-semibold mb-1">Mô tả thiết bị:</label>
+                <label className="block text-slate-700 font-semibold mb-1">Mô tả sản phẩm</label>
                 <textarea
                   rows={2}
-                  placeholder="Mô tả tóm tắt tính năng..."
+                  placeholder="Điểm nổi bật của thiết bị..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                  <Tag className="w-4 h-4 text-emerald-600" />
+                  <span>{editingProductId ? 'Cấu hình biến thể (SKU)' : 'Biến thể đầu tiên (SKU)'}</span>
+                </div>
+
+                {editingProductId && (
+                  <label className="block text-slate-600 font-medium">
+                    Chọn biến thể cần sửa
+                    <select
+                      value={editingVariantId ?? ''}
+                      onChange={event => selectEditingVariant(Number(event.target.value))}
+                      className="mt-1 w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    >
+                      {products.find(product => product.id === editingProductId)?.variants.map(variant => (
+                        <option key={variant.id} value={variant.id}>{variant.sku}</option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Mã SKU</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="ROG-AZOTH-NX-RED"
+                      value={sku}
+                      onChange={(e) => setSku(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Thuộc tính (Màu/Cấu hình)</label>
+                    <input
+                      type="text"
+                      value={variantAttr}
+                      onChange={(e) => setVariantAttr(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Giá bán (VNĐ)</label>
+                    <input
+                      type="number"
+                      required
+                      value={price}
+                      onChange={(e) => setPrice(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Giá gốc (VNĐ)</label>
+                    <input
+                      type="number"
+                      value={comparePrice}
+                      onChange={(e) => setComparePrice(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-600 font-medium mb-1">Tồn kho ban đầu</label>
+                    <input
+                      type="number"
+                      required
+                      value={stock}
+                      onChange={(e) => setStock(Number(e.target.value))}
+                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-slate-600 font-medium mb-1">Đường dẫn ảnh (URL)</label>
+                  <input
+                    type="url"
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3">
+                {editingProductId && (
+                  <button
+                    type="button"
+                    onClick={() => void handleAddVariant()}
+                    className="mr-auto px-3 py-2 border border-emerald-200 text-emerald-700 hover:bg-emerald-50 rounded-xl font-semibold cursor-pointer"
+                  >
+                    Thêm SKU mới
+                  </button>
+                )}
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
+                  onClick={() => { setShowAddModal(false); setEditingProductId(null); setEditingVariantId(null); }}
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
-                  Hủy bỏ
+                  Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
                 >
-                  Xác Nhận Thêm Sản Phẩm
+                  {editingProductId ? 'Lưu thay đổi' : 'Tạo sản phẩm'}
                 </button>
               </div>
             </form>

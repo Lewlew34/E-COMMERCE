@@ -2,8 +2,11 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User as UserIcon, Mail, Lock, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
+import { useToast } from '../../../contexts/ToastContext';
+import { sellerApiService } from '../../../services/storageService';
 
 export const RegisterCustomerPage: React.FC = () => {
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -12,27 +15,31 @@ export const RegisterCustomerPage: React.FC = () => {
     confirmPassword: '',
   });
   const { loginWithUser } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.confirmPassword) {
-      alert('Mật khẩu xác nhận không trùng khớp!');
+      showToast('Mật khẩu xác nhận không trùng khớp!', 'error');
       return;
     }
-    // Giả lập tạo tài khoản khách hàng thành công
-    loginWithUser({
-      id: Date.now(),
-      name: formData.name,
-      full_name: formData.name,
-      email: formData.email,
-      phone: formData.phone,
-      role: 'customer',
-      status: 'active',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      createdAt: new Date().toISOString().split('T')[0],
-    });
-    navigate('/');
+    if (formData.password.length < 8) {
+      showToast('Mật khẩu cần tối thiểu 8 ký tự.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const user = await sellerApiService.registerCustomer(formData);
+      loginWithUser(user);
+      showToast('Tạo tài khoản thành công.', 'success');
+      navigate('/');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể tạo tài khoản.', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -134,9 +141,10 @@ export const RegisterCustomerPage: React.FC = () => {
 
         <button
           type="submit"
-          className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer"
+          disabled={loading}
+          className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 group cursor-pointer disabled:opacity-50"
         >
-          <span>Tạo tài khoản ngay</span>
+          <span>{loading ? 'Đang tạo tài khoản...' : 'Tạo tài khoản ngay'}</span>
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </form>

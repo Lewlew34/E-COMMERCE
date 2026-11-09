@@ -213,7 +213,7 @@ export const AIChatWidget: React.FC = () => {
 
             {/* Unread badge if closed while response arrived */}
             {hasUnread && (
-              <span className="absolute -bottom-1 -left-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white border-2 border-white shadow">
+              <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white border-2 border-white shadow">
                 1
               </span>
             )}
