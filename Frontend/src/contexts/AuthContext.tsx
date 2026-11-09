@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User, UserRole } from '../types/auth.types';
 import { DEMO_USERS } from '../services/mockData/demoUsers';
+import { authApi } from '../api';
 
 interface AuthContextType {
   user: User | null;
@@ -84,6 +85,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = () => {
+    authApi.logout().catch(() => {});
     setUser(null);
     localStorage.removeItem('tech_store_user');
     localStorage.removeItem('techmart_auth_user');

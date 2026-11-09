@@ -188,7 +188,7 @@ export const AIChatWidget: React.FC = () => {
     <>
       {/* 1. FLOATING ROUND ACTION BUTTON (When collapsed) */}
       {!isOpen && (
-        <div className="fixed bottom-6 left-6 z-50 flex items-center gap-3">
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
           {/* Subtle invitation chip tooltip */}
           <div 
             onClick={handleOpen}
@@ -213,7 +213,7 @@ export const AIChatWidget: React.FC = () => {
 
             {/* Unread badge if closed while response arrived */}
             {hasUnread && (
-              <span className="absolute -bottom-1 -left-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white border-2 border-white shadow">
+              <span className="absolute -bottom-1 -right-1 px-1.5 py-0.5 rounded-full text-[9px] font-black bg-rose-600 text-white border-2 border-white shadow">
                 1
               </span>
             )}
@@ -223,7 +223,7 @@ export const AIChatWidget: React.FC = () => {
 
       {/* 2. EXPANDED AI CHAT WINDOW */}
       {isOpen && (
-        <div className="fixed bottom-4 left-4 sm:bottom-6 sm:left-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] h-[580px] max-h-[calc(100vh-3rem)] bg-white rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50 w-[calc(100vw-2rem)] sm:w-[410px] h-[580px] max-h-[calc(100vh-3rem)] bg-white rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300">
           {/* Header */}
           <div className="px-4 py-3.5 bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950 text-white flex items-center justify-between shrink-0 shadow-sm border-b border-slate-800">
             <div className="flex items-center gap-2.5">

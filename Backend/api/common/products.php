@@ -1,21 +1,14 @@
 <?php
-// Backend/api/products.php
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
+declare(strict_types=1);
 
-// Cấu hình kết nối Database
-$host = "localhost";
-$db_name = "techecommercedb";
-$username = "root";
-$password = ""; 
+require_once dirname(__DIR__, 2) . '/config/cors.php';
+require_once dirname(__DIR__, 2) . '/config/database.php';
+require_once dirname(__DIR__, 2) . '/core/response.php';
 
 try {
-    $conn = new PDO("mysql:host=$host;dbname=$db_name;charset=utf8mb4", $username, $password);
-    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conn = get_db_connection();
+    $limit = isset($_GET['limit']) ? max(1, min(100, (int) $_GET['limit'])) : 50;
 
-    $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 12;
-
-    // Sửa lại tên cột khớp với cấu trúc bảng MySQL thực tế của bạn
     $query = "
         SELECT 
             p.id, p.name, p.slug, p.description, p.specifications,
@@ -52,30 +45,21 @@ try {
         WHERE p.status = 'published'
         GROUP BY p.id, p.name, p.slug, p.description, p.specifications,
                  b.id, b.name, b.slug, b.logo, c.id, c.name, c.slug
+        ORDER BY p.id DESC
         LIMIT :limit
     ";
 
     $stmt = $conn->prepare($query);
-    $stmt->bindParam(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $stmt->execute();
     
     $products = [];
-    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-        // Giải mã JSON thông số kỹ thuật nếu có
-        $row['specifications'] = json_decode($row['specifications']);
+    while ($row = $stmt->fetch()) {
+        $row['specifications'] = json_decode((string) ($row['specifications'] ?? '{}'), true);
         $products[] = $row;
     }
 
-    echo json_encode([
-        "status" => "success",
-        "data" => $products
-    ]);
-
-} catch(PDOException $exception) {
-    http_response_code(500);
-    echo json_encode([
-        "status" => "error",
-        "message" => "Database connection failed: " . $exception->getMessage()
-    ]);
+    json_success($products);
+} catch (PDOException $exception) {
+    json_error("Lỗi khi tải danh sách sản phẩm: " . $exception->getMessage(), 500);
 }
-?>
