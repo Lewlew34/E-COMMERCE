@@ -7,16 +7,18 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
 ## 🚀 Công Nghệ Sử Dụng
 
 - **Frontend:**
-  - **Framework / Thư viện:** [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
+  - **Framework & Ngôn ngữ:** [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
   - **Công cụ build:** [Vite](https://vite.dev/) (chạy tại cổng mặc định `http://localhost:3000`)
   - **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
   - **Bộ icon:** [Lucide React](https://lucide.dev/)
   - **Điều hướng:** [React Router v7](https://reactrouter.com/)
-  - **State & Storage:** Context API (`CartContext`, `WishlistContext`, `ToastContext`, `AuthContext`) kết hợp đồng bộ bền vững qua `localStorage`.
-- **Cơ sở dữ liệu (Database Schema):**
-  - Thiết kế chuẩn 15 bảng quan hệ (`script.sql`) hỗ trợ đa biến thể, quản lý kho, flash sale và sổ địa chỉ giao hàng.
+  - **State Management:** Context API (`AuthContext`, `CartContext`, `WishlistContext`, `ToastContext`) kết hợp đồng bộ API CSDL và LocalStorage fallback.
 - **Backend:**
-  - **PHP + MySQL/MariaDB** chạy qua XAMPP, dùng session và API JSON cho đăng nhập, mua hàng và Seller Center.
+  - **PHP 8.x + MySQL/MariaDB** (chạy qua XAMPP hoặc PHP CLI).
+  - Kiến trúc API RESTful phân chia rõ ràng theo từng vai trò người dùng (**5 Roles**).
+  - Quản lý phiên làm việc bằng Session Cookie an toàn (`httponly`, `samesite`).
+- **Cấu hình môi trường:**
+  - File `.env` duy nhất tại thư mục gốc dùng chung cho cả Frontend và Backend.
 
 ---
 
@@ -24,178 +26,180 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
 
 ```text
 E-COMMERCE/
-├── Frontend/                           # Phân hệ giao diện người dùng (React 19 + TypeScript)
-│   ├── public/                         # Assets tĩnh công khai
-│   └── src/
-│       ├── layouts/                    # Khung layout theo vai trò (Customer, Seller, Admin, Auth)
-│       ├── modules/                    # Các module tính năng theo phân hệ nghiệp vụ
-│       │   ├── auth/                   # Đăng nhập, đăng ký tài khoản khách hàng & người bán
-│       │   ├── customer/               # Phân hệ Khách hàng
-│       │   │   ├── home/               # Trang chủ, banner ưu đãi, top thương hiệu
-│       │   │   ├── catalog/            # Danh mục sản phẩm, bộ lọc hãng, ngành hàng, giá bán
-│       │   │   ├── product/            # Chi tiết sản phẩm, chọn biến thể (Variant), thông số kỹ thuật
-│       │   │   ├── cart/               # Giỏ hàng tương tác, chọn sản phẩm, tính phí ship
-│       │   │   ├── checkout/           # Thanh toán, sổ địa chỉ (user_addresses), COD & VietQR
-│       │   │   ├── orders/             # Đặt hàng thành công & Quản lý lịch sử đơn hàng
-│       │   │   └── wishlist/           # Danh sách thiết bị công nghệ yêu thích
-│       │   ├── seller/                 # Kênh Người Bán (Seller Center)
-│       │   │   ├── dashboard/          # Thống kê doanh thu shop, đơn hàng mới
-│       │   │   ├── products/           # Quản lý thiết bị đa biến thể (SKU, giá, tồn kho) & Thêm mới
-│       │   │   └── orders/             # Tiếp nhận đơn, quy trình duyệt đơn & bàn giao vận chuyển
-│       │   └── admin/                  # Kênh Quản Trị Viên (Admin Center)
-│       │       ├── dashboard/          # Thống kê chỉ số GMV toàn sàn, phân bổ ngành hàng
-│       │       └── users/              # Quản lý người dùng và duyệt tài khoản
-│       ├── contexts/                   # Quản lý trạng thái toàn cục (Auth, Cart, Wishlist, Toast)
-│       ├── services/                   # Dữ liệu mẫu (Database Mock) & Tầng lưu trữ (Storage Service)
-│       ├── routes/                     # Hệ thống định tuyến & Bảo vệ phân quyền (ProtectedRoute)
-│       ├── types/                      # Định nghĩa kiểu dữ liệu TypeScript chuẩn 1:1 với Database
-│       └── utils/                      # Hàm tiện ích (định dạng tiền tệ VNĐ, ngày tháng...)
-├── Backend/                            # PHP API và migration MySQL cho Seller Center
-└── README.md                           # Tài liệu tổng quan dự án
+├── .env                              # Cấu hình môi trường duy nhất (DB, URLs) - git ignore
+├── .env.example                      # Bản mẫu cấu hình chung cho cả Frontend & Backend
+├── .gitignore
+├── README.md                         # Tài liệu hướng dẫn dự án
+│
+├── Backend/                          # Phân hệ Backend API (PHP + MariaDB)
+│   ├── config/                       # Cấu hình lõi (Đọc từ .env gốc)
+│   │   ├── env.php                   # Nạp biến môi trường từ file .env gốc
+│   │   ├── database.php              # Kết nối PDO tập trung (Singleton)
+│   │   └── cors.php                  # Xử lý CORS và Session Cookie thống nhất
+│   │
+│   ├── core/                         # Các hàm tiện ích dùng chung
+│   │   ├── response.php              # Helper trả về JSON: json_success(), json_error()
+│   │   └── auth_guard.php            # Kiểm tra quyền: require_customer(), require_seller(), require_admin()
+│   │
+│   └── api/                          # HỆ THỐNG API CHIA THEO 5 NHÓM ROLE
+│       ├── common/                   # [Public/Guest] Sản phẩm, chi tiết đa biến thể, danh mục, hãng, flash sale
+│       ├── auth/                     # [Tất cả] Đăng nhập, đăng ký (Cus/Seller), đăng xuất, phiên làm việc
+│       ├── customer/                 # [Customer] Tạo đơn checkout, xem lịch sử đơn, hủy đơn, sổ địa chỉ
+│       ├── seller/                   # [Seller] Quản lý kho sản phẩm shop, thêm biến thể SKU, duyệt đơn, báo cáo
+│       └── admin/                    # [Admin] Quản trị danh sách người dùng sàn, khóa/mở tài khoản, chỉ số GMV
+│
+└── Frontend/                         # Phân hệ Giao diện (React 19 + TypeScript + Vite)
+    ├── vite.config.ts                # Cấu hình envDir: '../' để đọc .env gốc
+    ├── package.json
+    └── src/
+        ├── api/                      # Tầng gọi API Backend (chia theo 5 Role tương ứng 1:1)
+        │   ├── client.ts             # Fetch wrapper cơ sở đọc VITE_API_URL
+        │   ├── common/               # catalogApi.ts (sản phẩm, biến thể, danh mục, hãng)
+        │   ├── auth/                 # authApi.ts (login, register, logout, me)
+        │   ├── customer/             # customerOrderApi.ts, customerAddressApi.ts
+        │   ├── seller/               # sellerProductApi.ts, sellerOrderApi.ts, sellerMetricsApi.ts
+        │   └── admin/                # adminUserApi.ts, adminMetricsApi.ts
+        │
+        ├── components/               # UI components dùng chung (AIChatWidget, TawkToChat...)
+        ├── contexts/                 # Quản lý State toàn cục (Auth, Cart, Wishlist, Toast)
+        ├── layouts/                  # Layout theo vai trò (CustomerLayout, SellerLayout)
+        ├── modules/                  # Phân hệ giao diện các trang
+        │   ├── auth/                 # Đăng nhập, đăng ký khách hàng & người bán
+        │   ├── customer/             # Home, Catalog, ProductDetail, Cart, Checkout, Orders
+        │   ├── seller/               # Dashboard, Products, Orders, Analytics
+        │   └── admin/                # Dashboard, Users
+        ├── services/                 # storageService.ts (adapter chuyển tiếp & mock data fallback)
+        ├── types/                    # Định nghĩa kiểu dữ liệu TypeScript
+        └── utils/                    # Format tiền tệ VNĐ, date, validation
 ```
 
 ---
 
-## 🌟 Các Phân Hệ & Tính Năng Đã Hoàn Thiện
+## 🌟 Các Phân Hệ & Tính Năng Hoàn Thiện
 
 ### 1. Phân Hệ Khách Hàng (Customer Experience)
-- **Trang chủ & Flash Sale Giờ Vàng:**
+- **Trang chủ & Flash Sale Giờ Vàng (`/`):**
   - Đồng hồ đếm ngược Flash Sale theo thời gian thực.
   - Lưới sản phẩm nổi bật kèm thông số cấu hình tóm tắt (CPU, GPU, RAM, Màn hình).
-  - Đối tác thương hiệu công nghệ ủy quyền (Apple, ASUS ROG, NVIDIA, Samsung, Sony...).
+  - Đối tác thương hiệu công nghệ ủy quyền (Apple, ASUS ROG, NVIDIA...).
 - **Danh Mục & Bộ Lọc Nâng Cao (`/catalog`):**
-  - Tìm kiếm theo từ khóa thông minh.
+  - Tìm kiếm theo từ khóa thông minh (hỗ trợ tiếng Việt có dấu và không dấu).
   - Lọc đa chiều theo Danh mục thiết bị và Thương hiệu sản xuất.
-  - Sắp xếp linh hoạt theo mức độ phổ biến, giá tăng dần hoặc giảm dần.
+  - Sắp xếp linh hoạt theo giá tăng/giảm hoặc mức độ phổ biến.
 - **Trang Chi Tiết Sản Phẩm (`/product/:id`):**
-  - Bộ chọn ảnh theo biến thể (Gallery preview & Thumbnails).
-  - **Bộ chọn biến thể (Variant Matrix):** Chọn cấu hình (RAM, SSD, Màu sắc) $\rightarrow$ giá bán và tồn kho tương ứng tự động cập nhật.
+  - **Bộ chọn biến thể (Variant Matrix) nối MySQL thực tế:** Chọn cấu hình (RAM, SSD, màu sắc) $\rightarrow$ giá bán và tồn kho tương ứng tự động cập nhật.
   - Bảng thông số kỹ thuật chi tiết (Tech Specifications).
-  - Nút *"Thêm vào giỏ hàng"* (có kiểm tra giới hạn tồn kho) và *"Mua ngay"*.
+  - Nút *"Thêm vào giỏ hàng"* (kiểm tra giới hạn tồn kho) và *"Mua ngay"*.
 - **Giỏ Hàng Tương Tác (`/cart`):**
-  - Tăng/giảm số lượng món hàng, tự động giới hạn theo số lượng tồn kho của từng biến thể.
-  - Checkbox chọn từng món hoặc chọn tất cả để thanh toán.
+  - Tăng/giảm số lượng món hàng, tự động giới hạn theo số lượng tồn kho từng biến thể.
   - Tự động tính phí vận chuyển (Miễn phí hỏa tốc cho đơn từ 500.000đ).
 - **Thanh Toán & Đặt Hàng (`/checkout`):**
-  - Sổ địa chỉ nhận hàng (`user_addresses`): Chọn địa chỉ có sẵn hoặc thêm nhanh địa chỉ mới (Phường/Xã, Quận/Huyện, Tỉnh/TP).
-  - Phương thức thanh toán: **COD** (tiền mặt khi nhận), **Chuyển khoản VietQR 24/7** (kèm mã QR mẫu), **Thẻ tín dụng quốc tế**.
-  - Tự động tạo mã đơn hàng chuẩn (`ORD-YYYYMMDD-XXX`) và lưu bản sao địa chỉ (`shipping_address_snapshot`).
-- **Đặt Hàng Thành Công & Theo Dõi Đơn (`/order-success/:code` & `/customer/orders`):**
-  - Xem danh sách đơn đã đặt kèm các tab lọc: *Tất cả, Chờ xử lý, Đang vận chuyển, Hoàn tất, Đã hủy*.
-  - Hỗ trợ hủy đơn hàng khi đơn còn ở trạng thái chờ duyệt (`pending`).
-- **Danh Sách Yêu Thích (`/wishlist`):**
-  - Lưu các thiết bị quan tâm để theo dõi biến động giá, hỗ trợ 1-Click thêm vào giỏ.
+  - Sổ địa chỉ nhận hàng lưu CSDL (`user_addresses`).
+  - Phương thức thanh toán: **COD** (tiền mặt khi nhận), **Chuyển khoản VietQR 24/7** (kèm mã QR mẫu), **Thẻ tín dụng**.
+  - Tự động tạo mã đơn hàng chuẩn (`ORD-YYYYMMDD-XXX`), trừ tồn kho biến thể và ghi nhận vào `inventory_logs`.
+- **Theo Dõi Đơn Hàng & Hủy Đơn (`/customer/orders`):**
+  - Xem danh sách đơn hàng thực tế từ CSDL kèm trạng thái mới nhất do Seller cập nhật.
+  - Cho phép khách hàng tự hủy đơn khi đơn ở trạng thái chờ duyệt (`pending`) và tự động hoàn lại tồn kho trong MySQL.
+- **Trợ Lý Ảo TechMart AI:**
+  - Nút và cửa sổ chatbox AI thông minh cố định tại góc dưới bên phải màn hình (`bottom-6 right-6`), tư vấn cấu hình thiết bị và chính sách giao hàng tức thì.
 
 ### 2. Kênh Người Bán (Seller Center)
 - **Quản lý sản phẩm, tồn kho và Flash Sale (`/seller/products`):**
-  - Dữ liệu sản phẩm được giới hạn theo tài khoản Seller đang đăng nhập.
-  - Thêm/sửa sản phẩm và SKU, điều chỉnh tồn kho có ghi lịch sử, ẩn sản phẩm thay vì xóa dữ liệu đơn cũ.
-  - Tạo Flash Sale có giá, thời hạn và giới hạn số lượng; sản phẩm đang khuyến mãi được phục vụ qua API công khai.
+  - Dữ liệu sản phẩm được giới hạn theo tài khoản Seller đang đăng nhập (`role = staff/seller`).
+  - Thêm, sửa sản phẩm và thêm biến thể SKU mới, tự động lưu lịch sử kho (`inventory_logs`).
+  - Thiết lập chiến dịch Flash Sale Giờ Vàng cho sản phẩm của shop.
+  - Ẩn sản phẩm an toàn (soft delete) thay vì xóa vĩnh viễn để bảo toàn dữ liệu đơn hàng cũ.
 - **Xử lý đơn hàng cửa hàng (`/seller/orders`):**
-  - Đơn checkout được lưu trong MySQL và gắn với Seller sở hữu sản phẩm.
-  - Quy trình: *Chờ xác nhận → Đã duyệt → Đang giao → Đã giao*; có thể nhập mã vận đơn.
-  - Hủy đơn chỉ hoàn tồn kho các sản phẩm của Seller đó; trạng thái Seller và lịch sử kho được lưu trong database.
-- **Dashboard và phân tích:** doanh thu đơn đã giao, trạng thái đơn, tồn kho thấp và sản phẩm bán chạy lấy từ dữ liệu thực; không có bảng đánh giá/lượt xem trong schema nên không hiển thị số giả.
+  - Tiếp nhận đơn hàng có chứa sản phẩm của shop.
+  - Quy trình duyệt đơn 4 bước: *Chờ xác nhận $\rightarrow$ Đã duyệt $\rightarrow$ Đang giao $\rightarrow$ Hoàn thành*, hỗ trợ nhập mã vận đơn.
+- **Dashboard & Phân tích doanh số (`/seller/dashboard` & `/seller/analytics`):**
+  - Thống kê doanh thu thực tế dựa trên các đơn đã giao thành công (`delivered`).
+  - Báo cáo số lượng đơn cần duyệt, cảnh báo sản phẩm sắp hết hàng ($\le 5$) và top sản phẩm bán chạy nhất.
 
 ### 3. Kênh Quản Trị Viên (Admin Center)
-- **Bảng điều khiển tổng quan (`/admin/dashboard`):**
-  - Theo dõi chỉ số doanh thu (GMV), tăng trưởng đơn hàng toàn sàn.
-  - Thống kê tỷ trọng doanh số theo từng nhóm ngành hàng công nghệ.
 - **Quản trị người dùng sàn (`/admin/users`):**
-  - Danh sách tài khoản người dùng, vai trò (`customer`, `seller`, `admin`) và trạng thái hoạt động.
-
----
-
-## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu Mô Phỏng (`script.sql`)
-
-Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô phỏng khớp hoàn toàn với **15 bảng** trong database:
-
-| STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
-| :---: | :--- | :--- |
-| 1 | `users` | Tài khoản khách hàng, người bán và quản trị viên |
-| 2 | `user_addresses` | Sổ địa chỉ giao hàng (Tên, SĐT, Số nhà, Phường, Quận, Tỉnh/TP, Mặc định) |
-| 3 | `categories` | Cây danh mục thiết bị công nghệ (hỗ trợ phân cấp `parent_id`) |
-| 4 | `brands` | Thương hiệu công nghệ chính hãng (Apple, ASUS ROG, NVIDIA, Sony...) |
-| 5 | `products` | Thông tin sản phẩm chính, mô tả và bảng thông số kỹ thuật (JSON) |
-| 6 | `product_variants` | Biến thể sản phẩm (SKU, giá bán, so sánh giá, tồn kho, thuộc tính) |
-| 7 | `carts` | Giỏ hàng người dùng |
-| 8 | `cart_items` | Chi tiết món hàng trong giỏ gắn theo từng biến thể (`variant_id`) |
-| 9 | `orders` | Đơn hàng, mã đơn, tổng tiền, phí ship, trạng thái đơn & thanh toán |
-| 10 | `order_items` | Snapshot tên sản phẩm, cấu hình biến thể và giá tại thời điểm đặt |
-| 11 | `payments` | Giao dịch thanh toán (COD, Chuyển khoản QR, Thẻ tín dụng) |
-| 12 | `flash_sales` | Chiến dịch giờ vàng công nghệ (Khung giờ bắt đầu & kết thúc) |
-| 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale (Giá sốc, giới hạn số suất, đã bán) |
-| 14 | `wishlists` | Danh sách sản phẩm được khách hàng lưu yêu thích |
-| 15 | `inventory_logs` | Lịch sử biến động kho (Tự động trừ tồn kho khi phát sinh đơn hàng) |
+  - Tải danh sách toàn bộ tài khoản người dùng từ bảng `users` trong MySQL.
+  - Thao tác khóa (`banned`) hoặc mở khóa (`active`) tài khoản vi phạm.
+  - Phân quyền và chuyển đổi vai trò người dùng (`customer` $\leftrightarrow$ `staff` $\leftrightarrow$ `admin`).
+- **Thống kê toàn sàn (`/admin/dashboard`):**
+  - Thống kê tổng doanh thu toàn sàn (GMV), tổng số đơn hàng, số lượng nhà bán và khách hàng.
 
 ---
 
 ## 🛠️ Hướng Dẫn Khởi Chạy Dự Án
 
 ### Yêu cầu môi trường:
-- [Node.js](https://nodejs.org/) phiên bản 20.19+ hoặc 22.12+ (phù hợp Vite 8)
-- Trình quản lý gói `npm`
-- XAMPP với Apache, MySQL và PHP PDO MySQL được bật
+- [Node.js](https://nodejs.org/) phiên bản 20.x trở lên
+- XAMPP (Apache + MySQL/MariaDB)
 
-### Cấu hình Backend với XAMPP:
-1. Mở XAMPP Control Panel và khởi chạy **Apache** cùng **MySQL**.
-2. Đặt/cập nhật thư mục `Backend` của dự án tại `C:\xampp\htdocs\TechMart\Backend`. Frontend hiện gọi API tại `http://localhost/TechMart/Backend/api`.
-3. Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, rồi import `Backend/migrations/20261108_seller_center.sql` **một lần duy nhất**. Migration thêm thông tin gian hàng, quyền sở hữu sản phẩm/đơn hàng và trạng thái xử lý riêng của Seller. Không chạy lại sau khi đã import.
-4. Cấu hình kết nối MySQL mặc định nằm trong `Backend/api/_seller_common.php` (host `localhost`, database `techecommercedb`, user `root`, mật khẩu trống). Nếu cấu hình XAMPP khác, cập nhật host/user/password tại đó và trong `Backend/api/products.php`.
-5. Đăng ký tài khoản tại trang đăng ký Người bán. Các sản phẩm cũ không tự động thuộc về tài khoản mới. Để giao sản phẩm cũ cho Seller, chạy thủ công sau khi thay email và ID sản phẩm phù hợp:
+---
 
-   ```sql
-   UPDATE products
-   SET seller_id = (SELECT id FROM users WHERE email = 'seller@example.com')
-   WHERE id IN (1, 2);
+### Bước 1: Cấu hình CSDL và File `.env`
 
-   UPDATE order_items oi
-   JOIN product_variants pv ON pv.id = oi.variant_id
-   JOIN products p ON p.id = pv.product_id
-   SET oi.seller_id = p.seller_id
-   WHERE oi.seller_id IS NULL;
-   ```
+1. **Khởi động XAMPP:**
+   - Mở XAMPP Control Panel, bấm **Start** cả 2 dịch vụ: **Apache** và **MySQL**.
+2. **Cơ sở dữ liệu:**
+   - Mở phpMyAdmin: `http://localhost/phpmyadmin`.
+   - Tạo database tên: `techecommercedb`.
+   - Import file dump CSDL của bạn vào database này.
+3. **Cấu hình file `.env` tại thư mục gốc `E-COMMERCE/`:**
+   - Nếu chưa có file `.env`, sao chép từ `.env.example`:
+     ```powershell
+     copy .env.example .env
+     ```
+   - Kiểm tra các thông số trong `.env`:
+     ```env
+     DB_HOST=localhost
+     DB_PORT=3306
+     DB_NAME=techecommercedb
+     DB_USER=root
+     DB_PASS=
 
-6. Đăng ký tài khoản khách hàng riêng để thử checkout. Đăng nhập Seller ở phiên trình duyệt này; đơn đặt cho sản phẩm đã gán Seller sẽ xuất hiện trong Seller Center. Tài khoản/demo đăng nhập cũ chạy local không tạo đơn database.
-7. Để tạo một đơn hàng thử nghiệm mà không cần thao tác checkout, chỉnh email Seller/Customer và slug sản phẩm trong `Backend/seed_seller_test.sql`, rồi chạy file đó trong phpMyAdmin. Script chỉ gán sản phẩm được chọn, tạo một đơn chờ xác nhận và trừ một sản phẩm tồn kho; chạy mỗi lần sẽ tạo thêm một đơn mới.
+     FRONTEND_URL=http://localhost:3000
+     ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
 
-### Chạy phân hệ Frontend:
+     VITE_API_URL=http://localhost/TechMart/Backend/api
+     ```
+
+---
+
+### Bước 2: Kết nối Backend với Apache XAMPP
+
+Apache của XAMPP phục vụ tại `C:\xampp\htdocs`. Để Apache nhận code Backend mà **không cần copy thủ công mỗi khi sửa code**, bạn tạo liên kết tắt (Directory Junction) bằng lệnh sau:
+
+*Mở Command Prompt (CMD) và chạy:*
+```cmd
+mklink /J "C:\xampp\htdocs\TechMart" "C:\Users\Asus\Documents\hoc\E-COMMERCE"
+```
+*(Thay đường dẫn trên bằng đường dẫn thực tế đến thư mục E-COMMERCE trên máy bạn nếu khác).*
+
+Kiểm tra API hoạt động bằng cách mở trình duyệt vào:
+`http://localhost/TechMart/Backend/api/common/products.php` $\rightarrow$ Nếu trả về JSON danh sách sản phẩm là thành công!
+
+---
+
+### Bước 3: Khởi chạy Giao diện Frontend
+
+Mở Terminal tại thư mục dự án và chạy:
 ```powershell
 # 1. Di chuyển vào thư mục Frontend
 cd Frontend
 
-# 2. Cài đặt các thư viện phụ thuộc (nếu là lần đầu)
+# 2. Cài đặt thư viện phụ thuộc (nếu là lần đầu)
 npm install
 
-# 3. Khởi chạy môi trường phát triển Vite
+# 3. Khởi chạy Vite dev server
 npm run dev
 ```
 
 Ứng dụng sẽ chạy tại địa chỉ: **`http://localhost:3000`**
 
-Nếu trình duyệt dùng địa chỉ `http://127.0.0.1:3000`, thêm origin đó (và origin thực tế) vào danh sách cho phép trong `Backend/api/_seller_common.php`.
-
-### Bật live chat Tawk.to:
-1. Tạo tài khoản tại [Tawk.to](https://www.tawk.to/), tạo Property cho TechMart và thêm website đang chạy vào danh sách domain được phép nếu Tawk yêu cầu.
-2. Trong Tawk.to, mở **Administration → Channels → Chat Widget → Direct Chat Link / Widget Code** (tên mục có thể thay đổi), lấy **Property ID** và **Widget ID** trong mã nhúng.
-3. Tạo file `Frontend/.env.local` từ `Frontend/.env.example` rồi điền hai giá trị:
-
-   ```env
-   VITE_TAWK_PROPERTY_ID=your_property_id
-   VITE_TAWK_WIDGET_ID=default
-   ```
-
-4. Khởi động lại Vite (`npm run dev`). Widget live chat sẽ hiển thị ở góc dưới bên phải trên các trang mua sắm; chatbot tư vấn sản phẩm hiện có được chuyển sang góc dưới bên trái. Nếu để trống ID thì không tải script Tawk.to.
-
-Không commit `.env.local`; hai ID dùng để nhúng widget trên trình duyệt, không phải mật khẩu tài khoản Tawk.to. Cấu hình hiện kết nối mọi khách vào cùng một inbox/shop Tawk.to. Muốn mỗi gian hàng Marketplace có hộp thư riêng cần cấu hình Property hoặc cơ chế định tuyến riêng cho từng Seller.
-
 ---
 
-## ⚡ Thanh Chuyển Vai Trò Nhanh (Role Switcher)
+## ⚡ Tài Khoản Mẫu Để Kiểm Thử
 
-Để trình diễn phần giao diện mẫu, ứng dụng tích hợp thanh **Role Switcher** tại thanh thông báo đầu trang (Top Bar):
-- Bấm vào nút vai trò trên cùng bên phải để chuyển ngay lập tức giữa:
-  - 👤 **Khách Hàng (Customer)**: Mua sắm, giỏ hàng, thanh toán, xem đơn hàng.
-  - 🏪 **Người Bán (Seller Center)**: Quản lý kho sản phẩm biến thể, duyệt đơn hàng.
-  - 👑 **Quản Trị Viên (Admin Portal)**: Bảng điều khiển GMV, quản lý người dùng.
-- Đây là chuyển vai trò demo phía giao diện, không thay thế phiên PHP/MySQL và không dùng cho đơn hàng thực.
+| Vai trò | Email đăng nhập | Mật khẩu mẫu | Chức năng kiểm thử chính |
+| :--- | :--- | :---: | :--- |
+| 👤 **Khách hàng (Customer)** | Đăng ký mới tại `/register` hoặc tài khoản có sẵn trong DB | Mật khẩu khi tạo | Mua hàng, thanh toán COD/QR, xem và hủy đơn hàng |
+| 🏪 **Người bán (Seller)** | Đăng ký mới tại `/seller/register` hoặc tài khoản `staff` trong DB | Mật khẩu khi tạo | Thêm sản phẩm, tạo Flash Sale, duyệt đơn hàng |
+| 👑 **Quản trị viên (Admin)** | Truy cập trực tiếp trang `/admin/users` | - | Khóa/mở khóa tài khoản, phân quyền người dùng |
