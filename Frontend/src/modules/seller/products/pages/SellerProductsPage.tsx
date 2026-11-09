@@ -78,9 +78,17 @@ export const SellerProductsPage: React.FC = () => {
   const targetProduct = products.find(p => p.id === selectedProductId) || products[0];
 
   const handleDelete = (id: number) => {
-    productService.deleteProduct(id);
-    setProducts(productService.getAll());
-    showToast('Đã xóa sản phẩm khỏi gian hàng', 'info');
+    const targetProd = products.find(p => p.id === id);
+    const prodName = targetProd ? targetProd.name : 'này';
+    
+    // Hộp thoại hỏi xác nhận trước khi xóa theo yêu cầu
+    const isConfirmed = window.confirm(`Bạn có chắc chắn muốn xóa sản phẩm "${prodName}" không?`);
+    
+    if (isConfirmed) {
+      productService.deleteProduct(id);
+      setProducts(productService.getAll());
+      showToast('Đã xóa sản phẩm khỏi gian hàng', 'info');
+    }
   };
 
   const handleCreateProduct = (e: React.FormEvent) => {
@@ -684,51 +692,41 @@ export const SellerProductsPage: React.FC = () => {
                           type="button"
                           key={preset.label}
                           onClick={() => handleSetDurationHours(preset.h)}
-                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:border-rose-400 hover:text-rose-600 font-medium transition-colors cursor-pointer"
+                          className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 font-medium transition-colors cursor-pointer shadow-2xs"
                         >
                           {preset.label}
                         </button>
                       ))}
                     </div>
                   </div>
-
-                  {/* Customer Preview Snapshot */}
-                  <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-200 text-amber-900 text-[11px] flex items-start gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="font-bold">Đồng bộ tự động:</strong> Khi bạn bấm lưu, giá bán <strong className="text-rose-700">{formatCurrencyVN(computedFlashSalePrice)}</strong> kèm tag giảm giá <strong className="text-rose-700">-{fsDiscountPercent}%</strong> sẽ được áp dụng ngay lập tức tại mục Flash Sale Trang Chủ và Chi Tiết Sản Phẩm cho khách hàng.
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              {/* Modal Actions */}
+              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                 {targetProduct.isFlashSale ? (
                   <button
                     type="button"
                     onClick={handleDisableFlashSale}
-                    className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl font-bold cursor-pointer transition-colors"
+                    className="px-4 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-semibold text-xs transition-colors cursor-pointer"
                   >
-                    Gỡ khỏi Flash Sale
+                    Gỡ Flash Sale
                   </button>
-                ) : (
-                  <div></div>
-                )}
+                ) : <div />}
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setFlashSaleModalOpen(false)}
-                    className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
+                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
                   >
-                    Hủy
+                    Hủy bỏ
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold cursor-pointer shadow-md transition-colors"
+                    className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
                   >
-                    Lưu cấu hình Flash Sale
+                    Lưu Cấu Hình Flash Sale
                   </button>
                 </div>
               </div>
@@ -741,30 +739,41 @@ export const SellerProductsPage: React.FC = () => {
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-emerald-600" /> Thêm Thiết Bị Công Nghệ Mới
-            </h3>
+            <div className="flex items-start justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <PlusCircle className="w-5 h-5 text-emerald-600" /> Thêm Thiết Bị Công Nghệ Mới
+                </h3>
+                <p className="text-xs text-slate-500">Khai báo thông số kỹ thuật và mã SKU vào gian hàng</p>
+              </div>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Tên sản phẩm thiết bị</label>
+                <label className="block text-slate-700 font-semibold mb-1">Tên thiết bị / sản phẩm (*):</label>
                 <input
                   type="text"
                   required
-                  placeholder="Ví dụ: Bàn Phím Cơ Không Dây ROG Azoth 75%"
+                  placeholder="Ví dụ: Laptop Gaming ASUS ROG Strix..."
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none font-medium"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Thương hiệu</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Hãng sản xuất:</label>
                   <select
                     value={brandId}
                     onChange={(e) => setBrandId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     {brands.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
@@ -773,11 +782,11 @@ export const SellerProductsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-slate-700 font-semibold mb-1">Danh mục</label>
+                  <label className="block text-slate-700 font-semibold mb-1">Ngành hàng:</label>
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(Number(e.target.value))}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   >
                     {categories.map(c => (
                       <option key={c.id} value={c.id}>{c.name}</option>
@@ -786,102 +795,106 @@ export const SellerProductsPage: React.FC = () => {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Mã SKU phiên bản (*):</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: G513QR-RTX3070"
+                    value={sku}
+                    onChange={(e) => setSku(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Tên phiên bản / Cấu hình:</label>
+                  <input
+                    type="text"
+                    placeholder="VD: 16GB / 512GB SSD"
+                    value={variantAttr}
+                    onChange={(e) => setVariantAttr(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Giá bán (VNĐ):</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100000}
+                    required
+                    value={price}
+                    onChange={(e) => setPrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold text-blue-600 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Giá niêm yết:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={100000}
+                    required
+                    value={comparePrice}
+                    onChange={(e) => setComparePrice(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl text-slate-500 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-700 font-semibold mb-1">Kho tồn:</label>
+                  <input
+                    type="number"
+                    min={1}
+                    required
+                    value={stock}
+                    onChange={(e) => setStock(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
               <div>
-                <label className="block text-slate-700 font-semibold mb-1">Mô tả sản phẩm</label>
+                <label className="block text-slate-700 font-semibold mb-1">Link ảnh minh họa (URL):</label>
+                <input
+                  type="url"
+                  required
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-slate-600 font-mono text-[11px] focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-slate-700 font-semibold mb-1">Mô tả thiết bị:</label>
                 <textarea
                   rows={2}
-                  placeholder="Điểm nổi bật của thiết bị..."
+                  placeholder="Mô tả tóm tắt tính năng..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                 />
               </div>
 
-              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                  <Tag className="w-4 h-4 text-emerald-600" />
-                  <span>Cấu hình Biến Thể Đầu Tiên (Variant)</span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-slate-600 font-medium mb-1">Mã SKU</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="ROG-AZOTH-NX-RED"
-                      value={sku}
-                      onChange={(e) => setSku(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 font-medium mb-1">Thuộc tính (Màu/Cấu hình)</label>
-                    <input
-                      type="text"
-                      value={variantAttr}
-                      onChange={(e) => setVariantAttr(e.target.value)}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-slate-600 font-medium mb-1">Giá bán (VNĐ)</label>
-                    <input
-                      type="number"
-                      required
-                      value={price}
-                      onChange={(e) => setPrice(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 font-medium mb-1">Giá gốc (VNĐ)</label>
-                    <input
-                      type="number"
-                      value={comparePrice}
-                      onChange={(e) => setComparePrice(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 font-medium mb-1">Tồn kho ban đầu</label>
-                    <input
-                      type="number"
-                      required
-                      value={stock}
-                      onChange={(e) => setStock(Number(e.target.value))}
-                      className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-600 font-medium mb-1">Đường dẫn ảnh (URL)</label>
-                  <input
-                    type="url"
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-300 rounded-lg bg-white"
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-3">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 font-semibold text-xs transition-colors cursor-pointer"
                 >
-                  Hủy
+                  Hủy bỏ
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
                 >
-                  Tạo sản phẩm
+                  Xác Nhận Thêm Sản Phẩm
                 </button>
               </div>
             </form>

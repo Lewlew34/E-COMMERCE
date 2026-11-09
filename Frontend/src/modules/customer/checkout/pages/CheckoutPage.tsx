@@ -10,7 +10,8 @@ import {
   ArrowLeft, 
   CheckCircle2, 
   Plus, 
-  Check 
+  Check,
+  Zap
 } from 'lucide-react';
 import { useCart } from '../../../../contexts/CartContext';
 import { addressService, orderService } from '../../../../services/storageService';
@@ -25,7 +26,9 @@ export const CheckoutPage: React.FC = () => {
 
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('COD');
+  
+  // Hỗ trợ chọn phương thức VNPAY
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | 'VNPAY'>('COD');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Modal new address state
@@ -104,15 +107,17 @@ export const CheckoutPage: React.FC = () => {
     const randomSuffix = Math.floor(100 + Math.random() * 900);
     const orderCode = `ORD-${dateStr}-${randomSuffix}`;
 
+    const actualPaymentMethod: PaymentMethod = paymentMethod === 'VNPAY' ? 'BANK_TRANSFER' : paymentMethod;
+
     const newOrder = orderService.createOrder({
       userId: 1,
       orderCode,
       totalAmount: selectedSubtotal,
       shippingFee,
       finalAmount: finalTotal,
-      paymentStatus: paymentMethod === 'BANK_TRANSFER' ? 'paid' : 'pending',
+      paymentStatus: (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'VNPAY') ? 'paid' : 'pending',
       orderStatus: 'pending',
-      paymentMethod,
+      paymentMethod: actualPaymentMethod,
       shippingAddressSnapshot: selectedAddress,
       items: selectedItems.map((item, index) => ({
         id: Date.now() + index,
@@ -242,7 +247,7 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </label>
 
-              {/* Option 2: Bank Transfer QR */}
+              {/* Option 2: Bank Transfer VietQR */}
               <label
                 onClick={() => setPaymentMethod('BANK_TRANSFER')}
                 className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
@@ -267,7 +272,7 @@ export const CheckoutPage: React.FC = () => {
                   </p>
 
                   {paymentMethod === 'BANK_TRANSFER' && (
-                    <div className="mt-4 p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-center gap-4 text-xs">
+                    <div className="mt-4 p-4 rounded-xl bg-slate-900 text-white flex flex-col sm:flex-row items-center gap-4 text-xs animate-in fade-in">
                       <div className="w-24 h-24 bg-white p-1.5 rounded-lg shrink-0 flex items-center justify-center">
                         <QrCode className="w-20 h-20 text-slate-900" />
                       </div>
@@ -282,7 +287,54 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </label>
 
-              {/* Option 3: Credit Card */}
+              {/* Option 3: VNPAY-QR (KHUNG QR BUNG RA KHI CHỌN) */}
+              <label
+                onClick={() => setPaymentMethod('VNPAY')}
+                className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                  paymentMethod === 'VNPAY' ? 'border-blue-600 bg-blue-50/30' : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  checked={paymentMethod === 'VNPAY'}
+                  onChange={() => setPaymentMethod('VNPAY')}
+                  className="mt-1 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 font-bold text-xs text-slate-900">
+                    <Zap className="w-4 h-4 text-rose-600 fill-rose-600" />
+                    <span>Cổng Thanh Toán VNPAY-QR / Thẻ Quốc Tế</span>
+                    <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-md">VNPAY</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Quét mã QR qua ứng dụng Mobile Banking bất kỳ hoặc thanh toán bằng thẻ Visa/Master/JCB.
+                  </p>
+
+                  {/* Khung giao diện quét mã QR VNPAY */}
+                  {paymentMethod === 'VNPAY' && (
+                    <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-slate-900 to-blue-950 text-white flex flex-col sm:flex-row items-center gap-4 text-xs animate-in fade-in duration-200">
+                      <div className="w-24 h-24 bg-white p-1.5 rounded-lg shrink-0 flex items-center justify-center shadow-md">
+                        <img 
+                          src={`https://api.vietqr.io/image/970436-123456789-n9Q581V.jpg?accountName=VNPAY%20GATEWAY&amount=${finalTotal}&addInfo=VNPAY_CHECKOUT`} 
+                          alt="VNPAY QR Code" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <div className="text-rose-400 font-bold flex items-center gap-1 text-xs">
+                          <Zap className="w-3.5 h-3.5 fill-rose-400" /> Cổng VNPAY-QR Trực Tuyến
+                        </div>
+                        <div className="text-slate-300 text-[11px]">Đơn vị chấp nhận: <span className="text-white font-bold">TECHMART E-COMMERCE</span></div>
+                        <div className="text-slate-300 text-[11px]">Số tiền thanh toán: <span className="text-blue-400 font-mono font-bold">{formatCurrencyVN(finalTotal)}</span></div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">Mở app Ngân hàng (MB, Vietcombank, Agribank...) quét mã QR để hoàn tất.</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </label>
+
+              {/* Option 4: Credit Card */}
               <label
                 onClick={() => setPaymentMethod('CREDIT_CARD')}
                 className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
