@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { Cpu, ShieldCheck, Zap, Laptop } from 'lucide-react';
+import { ShieldCheck, Zap, Laptop } from 'lucide-react';
 
 export const AuthLayout: React.FC = () => {
   return (
@@ -11,14 +11,12 @@ export const AuthLayout: React.FC = () => {
 
       {/* Top Header Logo */}
       <div className="mb-6 z-10 text-center">
-        <Link to="/" className="inline-flex items-center gap-2 group">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-transform">
-            <Cpu className="w-6 h-6" />
-          </div>
-          <div className="text-left">
-            <span className="text-2xl font-black tracking-tight text-white">TECH<span className="text-blue-500">MART</span></span>
-            <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">Digital Hub</span>
-          </div>
+        <Link to="/" className="inline-block group transition-transform hover:scale-105" title="Về trang chủ LHK Tech">
+          <img
+            src="/logo-lhk-tech-dark.png"
+            alt="LHK Tech"
+            className="h-14 w-auto object-contain mx-auto drop-shadow-[0_0_18px_rgba(59,130,246,0.3)]"
+          />
         </Link>
       </div>
 
