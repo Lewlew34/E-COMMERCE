@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, Link } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { ShieldCheck, Zap, Laptop } from 'lucide-react';
 
 export const AuthLayout: React.FC = () => {
@@ -10,14 +10,12 @@ export const AuthLayout: React.FC = () => {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header Logo */}
-      <div className="mb-6 z-10 text-center">
-        <Link to="/" className="inline-block group transition-transform hover:scale-105" title="Về trang chủ LHK Tech">
-          <img
-            src="/logo-lhk-tech-dark.png"
-            alt="LHK Tech"
-            className="h-14 w-auto object-contain mx-auto drop-shadow-[0_0_18px_rgba(59,130,246,0.3)]"
-          />
-        </Link>
+      <div className="mb-6 z-10 text-center select-none">
+        <img
+          src="/logo-lhk-tech-dark.png"
+          alt="LHK Tech"
+          className="h-14 w-auto object-contain mx-auto drop-shadow-[0_0_18px_rgba(59,130,246,0.3)]"
+        />
       </div>
 
       {/* Outlet for Form (Card) */}

@@ -61,16 +61,16 @@ export const DashboardPortalLayout: React.FC<DashboardPortalLayoutProps> = ({
       <aside className="w-64 h-full flex flex-col shrink-0 bg-slate-900 text-slate-200 border-r border-slate-800 select-none">
         {/* Brand Header */}
         <div className="shrink-0 p-4 border-b border-slate-800">
-          <Link to="/" className="flex items-center justify-between gap-2 group" title="Về trang chủ LHK Tech">
+          <div className="flex items-center justify-between gap-2">
             <img
               src="/logo-lhk-tech-dark.png"
               alt="LHK Tech"
-              className="h-9 w-auto object-contain transition-transform group-hover:scale-105"
+              className="h-9 w-auto object-contain"
             />
             <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-md border tracking-wider uppercase ${badgeColorStyles}`}>
               {portalRoleBadge}
             </span>
-          </Link>
+          </div>
           <div className="text-[11px] text-slate-400 mt-2.5 flex items-center justify-between">
             <span>{portalSubtitle}</span>
             <span className="text-[10px] text-slate-500 font-mono">LHK v2.0</span>
