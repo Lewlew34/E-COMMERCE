@@ -26,7 +26,7 @@ if ($name === '' || $shopName === '' || !$email || $phone === '' || $address ===
 $pdo = get_db_connection();
 $stmt = $pdo->prepare(
     'INSERT INTO users (email, password_hash, full_name, phone, role, status, shop_name, shop_address, business_category)
-     VALUES (:email, :password_hash, :full_name, :phone, "staff", "active", :shop_name, :shop_address, :business_category)'
+     VALUES (:email, :password_hash, :full_name, :phone, "staff", "inactive", :shop_name, :shop_address, :business_category)'
 );
 
 try {
@@ -47,11 +47,6 @@ try {
 }
 
 $userId = (int) $pdo->lastInsertId();
-session_regenerate_id(true);
-$_SESSION['auth_user_id'] = $userId;
-$_SESSION['auth_role'] = 'staff';
-$_SESSION['seller_user_id'] = $userId;
-$_SESSION['seller_role'] = 'staff';
 
 $user = [
     'id' => $userId,
@@ -60,14 +55,14 @@ $user = [
     'email' => $email,
     'phone' => $phone,
     'role' => 'staff',
-    'status' => 'active',
+    'status' => 'inactive',
     'shopName' => $shopName,
     'createdAt' => date('Y-m-d H:i:s'),
 ];
 
 json_response([
     'status' => 'success',
-    'message' => 'Đăng ký gian hàng thành công.',
+    'message' => 'Đã gửi hồ sơ đăng ký. Bạn có thể đăng nhập sau khi quản trị viên phê duyệt.',
     'user' => $user,
     'data' => $user,
 ], 201);

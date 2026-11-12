@@ -1,272 +1,157 @@
-import React, { useState } from 'react';
-import { Store, Search, Filter, CheckCircle2, XCircle, AlertTriangle, UserCheck, ShieldAlert } from 'lucide-react';
-import { DEMO_USERS } from '../../../../services/mockData/demoUsers';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, CheckCircle2, Filter, Search, ShieldAlert, Store, UserCheck, XCircle } from 'lucide-react';
+import { adminModerationApi, adminUserApi } from '../../../../api';
 import type { User, UserStatus } from '../../../../types/auth.types';
 import { useToast } from '../../../../contexts/ToastContext';
 
-export const AdminSellersPage: React.FC = () => {
-  // Sellers / Staff list mapped to TechEcommerceDB [users] table
-  const initialSellers: User[] = [
-    DEMO_USERS.seller,
-    DEMO_USERS.seller_pending,
-    DEMO_USERS.seller_banned,
-    {
-      id: 6,
-      name: 'Nguyễn Văn Minh (Hacom Store)',
-      full_name: 'Nguyễn Văn Minh',
-      email: 'hacom@techstore.vn',
-      phone: '0901234567',
-      role: 'staff',
-      status: 'active',
-      shopName: 'HACOM Computer Official',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      createdAt: '2026-02-14',
-      created_at: '2026-02-14T08:00:00Z',
-    },
-    {
-      id: 7,
-      name: 'Lê Thanh Tùng (PhongVu Tech)',
-      full_name: 'Lê Thanh Tùng',
-      email: 'phongvu@techno.vn',
-      phone: '0918765432',
-      role: 'staff',
-      status: 'active',
-      shopName: 'Phong Vũ Technology Store',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-      createdAt: '2026-03-01',
-      created_at: '2026-03-01T10:15:00Z',
-    }
-  ];
+type SellerFilter = 'all' | 'pending' | 'approved' | 'rejected';
 
-  const [sellers, setSellers] = useState<User[]>(initialSellers);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'ALL' | UserStatus>('ALL');
+export const AdminSellersPage: React.FC = () => {
+  const [sellers, setSellers] = useState<User[]>([]);
+  const [allSellers, setAllSellers] = useState<User[]>([]);
+  const [filter, setFilter] = useState<SellerFilter>('all');
+  const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const { showToast } = useToast();
 
-  const handleUpdateStatus = (id: string | number, newStatus: UserStatus) => {
-    setSellers(prev =>
-      prev.map(s => (s.id === id ? { ...s, status: newStatus } : s))
-    );
-    if (newStatus === 'active') {
-      showToast('Đã phê duyệt / kích hoạt gian hàng thành công!', 'success');
-    } else if (newStatus === 'banned') {
-      showToast('Đã khóa gian hàng!', 'error');
-    } else {
-      showToast('Đã chuyển gian hàng về trạng thái tạm ngừng.', 'info');
+  const loadSellers = async () => {
+    setLoading(true);
+    try {
+      const [visible, all] = await Promise.all([
+        adminModerationApi.getSellers(filter),
+        adminModerationApi.getSellers('all')
+      ]);
+      setSellers(visible);
+      setAllSellers(all);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không tải được hồ sơ Seller.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const filtered = sellers.filter(s => {
-    if (statusFilter !== 'ALL' && s.status !== statusFilter) return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      const matchName = (s.full_name || s.name).toLowerCase().includes(q);
-      const matchShop = (s.shopName || '').toLowerCase().includes(q);
-      const matchEmail = s.email.toLowerCase().includes(q);
-      const matchPhone = (s.phone || '').includes(q);
-      if (!matchName && !matchShop && !matchEmail && !matchPhone) return false;
-    }
-    return true;
-  });
+  useEffect(() => {
+    void loadSellers();
+  }, [filter]);
 
-  const totalCount = sellers.length;
-  const activeCount = sellers.filter(s => s.status === 'active').length;
-  const pendingCount = sellers.filter(s => s.status === 'inactive').length;
-  const bannedCount = sellers.filter(s => s.status === 'banned').length;
+  const filtered = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    if (!query) return sellers;
+    return sellers.filter(seller =>
+      [seller.shopName, seller.name, seller.email, seller.phone, seller.businessCategory]
+        .some(value => value?.toLocaleLowerCase().includes(query))
+    );
+  }, [sellers, search]);
+
+  const handleReview = async (seller: User, decision: 'approve' | 'reject') => {
+    const id = Number(seller.id);
+    setBusyId(id);
+    try {
+      await adminModerationApi.reviewSeller(id, decision);
+      showToast(decision === 'approve' ? 'Đã phê duyệt gian hàng.' : 'Đã từ chối hồ sơ Seller.', 'success');
+      await loadSellers();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không cập nhật được hồ sơ Seller.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleStatus = async (seller: User, status: UserStatus) => {
+    try {
+      await adminUserApi.updateUserStatus(Number(seller.id), status);
+      showToast(status === 'active' ? 'Đã mở lại gian hàng.' : 'Đã khóa gian hàng.', 'success');
+      await loadSellers();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không cập nhật được trạng thái.', 'error');
+    }
+  };
+
+  const counts = {
+    pending: allSellers.filter(seller => seller.status === 'inactive').length,
+    approved: allSellers.filter(seller => seller.status === 'active').length,
+    rejected: allSellers.filter(seller => seller.status === 'rejected').length,
+    banned: allSellers.filter(seller => seller.status === 'banned').length
+  };
+
+  const label = (status?: string) => {
+    if (status === 'inactive') return 'Chờ duyệt';
+    if (status === 'active') return 'Đang hoạt động';
+    if (status === 'rejected') return 'Đã từ chối';
+    if (status === 'banned') return 'Đã khóa';
+    return status || '—';
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-black text-white flex items-center gap-2">
-            <Store className="w-5 h-5 text-amber-400" />
-            <span>Kiểm Duyệt & Quản Lý Gian Hàng (Sellers)</span>
-          </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Dữ liệu đối tác bán hàng & tài khoản nhân sự quản trị kho (Ánh xạ bảng [users] role: staff / seller)
-          </p>
-        </div>
+      <header>
+        <h1 className="text-xl font-black text-white flex items-center gap-2"><Store className="w-5 h-5 text-amber-400" />Duyệt và quản lý gian hàng</h1>
+        <p className="text-xs text-slate-400 mt-1">Chỉ Seller được Admin phê duyệt mới có thể đăng nhập và quản lý shop.</p>
+      </header>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[
+          { title: 'Hồ sơ đang xem', value: sellers.length, icon: Store, color: 'text-white' },
+          { title: 'Chờ duyệt', value: counts.pending, icon: AlertTriangle, color: 'text-amber-300' },
+          { title: 'Đã duyệt', value: counts.approved, icon: CheckCircle2, color: 'text-emerald-300' },
+          { title: 'Đã từ chối / khóa', value: counts.rejected + counts.banned, icon: XCircle, color: 'text-rose-300' }
+        ].map(card => {
+          const Icon = card.icon;
+          return <div key={card.title} className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+            <div className="flex items-center justify-between text-xs text-slate-400">{card.title}<Icon className={`w-4 h-4 ${card.color}`} /></div>
+            <div className={`text-2xl font-black mt-1 ${card.color}`}>{card.value}</div>
+          </div>;
+        })}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <div className="text-xs text-slate-400 font-semibold">Tổng Gian Hàng</div>
-          <div className="text-2xl font-black text-white mt-1">{totalCount}</div>
+      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm shop, người đại diện, email..."
+            className="w-full pl-9 pr-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white" />
         </div>
-
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <div className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-            <CheckCircle2 className="w-3.5 h-3.5" /> Đang Hoạt Động
-          </div>
-          <div className="text-2xl font-black text-emerald-400 mt-1">{activeCount}</div>
-        </div>
-
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <div className="text-xs text-amber-400 font-semibold flex items-center gap-1">
-            <AlertTriangle className="w-3.5 h-3.5" /> Chờ Phê Duyệt
-          </div>
-          <div className="text-2xl font-black text-amber-400 mt-1">{pendingCount}</div>
-        </div>
-
-        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-          <div className="text-xs text-rose-400 font-semibold flex items-center gap-1">
-            <XCircle className="w-3.5 h-3.5" /> Đang Bị Khóa
-          </div>
-          <div className="text-2xl font-black text-rose-400 mt-1">{bannedCount}</div>
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
-      <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="relative w-full sm:w-80">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm tên shop, chủ gian hàng, email, SĐT..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-xs text-slate-400">Trạng thái:</span>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-1.5 focus:outline-none"
-          >
-            <option value="ALL">Tất cả ({totalCount})</option>
-            <option value="active">Đang hoạt động (active)</option>
-            <option value="inactive">Chờ phê duyệt (inactive)</option>
-            <option value="banned">Bị khóa (banned)</option>
+        <label className="flex items-center gap-2 text-xs text-slate-400"><Filter className="w-4 h-4" />Trạng thái
+          <select value={filter} onChange={event => setFilter(event.target.value as SellerFilter)}
+            className="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-3 py-2">
+            <option value="all">Tất cả</option><option value="pending">Chờ duyệt</option>
+            <option value="approved">Đã duyệt</option><option value="rejected">Đã từ chối</option>
           </select>
-        </div>
+        </label>
       </div>
 
-      {/* Sellers Table mapped to TechEcommerceDB [users] */}
-      <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+      <section className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-900/80 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
-              <tr>
-                <th className="py-3 px-4">Mã #ID</th>
-                <th className="py-3 px-4">Tên Gian Hàng (Shop)</th>
-                <th className="py-3 px-4">Chủ Sở Hữu (full_name)</th>
-                <th className="py-3 px-4">Email & SĐT (users.email/phone)</th>
-                <th className="py-3 px-4">Vai Trò (role)</th>
-                <th className="py-3 px-4">Trạng Thái (status)</th>
-                <th className="py-3 px-4">Ngày Đăng Ký (created_at)</th>
-                <th className="py-3 px-4 text-right">Thao Tác Duyệt</th>
-              </tr>
+            <thead className="bg-slate-900 text-slate-400 uppercase text-[10px]">
+              <tr><th className="p-3">Shop / ID</th><th className="p-3">Đại diện & liên hệ</th><th className="p-3">Thông tin kinh doanh</th><th className="p-3">Trạng thái</th><th className="p-3">Ngày đăng ký</th><th className="p-3 text-right">Thao tác</th></tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-medium">
-              {filtered.map(s => {
-                const status = s.status || 'active';
-                return (
-                  <tr key={s.id} className="hover:bg-slate-900/50 transition-colors">
-                    {/* 1. ID */}
-                    <td className="py-3 px-4 font-mono text-slate-400">#{s.id}</td>
-
-                    {/* 2. Shop Name */}
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-white flex items-center gap-1.5">
-                        <Store className="w-3.5 h-3.5 text-amber-400" />
-                        <span>{s.shopName || 'Gian Hàng Chưa Đặt Tên'}</span>
-                      </div>
-                    </td>
-
-                    {/* 3. Owner Full Name & Avatar */}
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={s.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'}
-                          alt=""
-                          className="w-7 h-7 rounded-full object-cover border border-slate-700"
-                        />
-                        <span className="text-white font-semibold">{s.full_name || s.name}</span>
-                      </div>
-                    </td>
-
-                    {/* 4. Email & Phone */}
-                    <td className="py-3 px-4">
-                      <div className="text-slate-300 font-mono text-[11px]">{s.email}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{s.phone || 'Chưa cập nhật'}</div>
-                    </td>
-
-                    {/* 5. Role */}
-                    <td className="py-3 px-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 uppercase">
-                        {s.role}
-                      </span>
-                    </td>
-
-                    {/* 6. Status */}
-                    <td className="py-3 px-4">
-                      {status === 'active' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                          <CheckCircle2 className="w-3 h-3" /> Đang hoạt động
-                        </span>
-                      )}
-                      {status === 'inactive' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                          <AlertTriangle className="w-3 h-3" /> Chờ phê duyệt
-                        </span>
-                      )}
-                      {status === 'banned' && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                          <XCircle className="w-3 h-3" /> Bị khóa (banned)
-                        </span>
-                      )}
-                    </td>
-
-                    {/* 7. Created At */}
-                    <td className="py-3 px-4 text-slate-400 font-mono text-[11px]">
-                      {s.createdAt || '2026-01-01'}
-                    </td>
-
-                    {/* 8. Actions */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {status === 'inactive' && (
-                          <button
-                            onClick={() => handleUpdateStatus(s.id, 'active')}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <UserCheck className="w-3 h-3" />
-                            <span>Duyệt Shop</span>
-                          </button>
-                        )}
-                        {status === 'active' && (
-                          <button
-                            onClick={() => handleUpdateStatus(s.id, 'banned')}
-                            className="px-2.5 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <ShieldAlert className="w-3 h-3" />
-                            <span>Khóa</span>
-                          </button>
-                        )}
-                        {status === 'banned' && (
-                          <button
-                            onClick={() => handleUpdateStatus(s.id, 'active')}
-                            className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-[11px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
-                          >
-                            <CheckCircle2 className="w-3 h-3" />
-                            <span>Mở khóa</span>
-                          </button>
-                        )}
+            <tbody className="divide-y divide-slate-800">
+              {loading ? <tr><td colSpan={6} className="p-10 text-center text-slate-500">Đang tải hồ sơ...</td></tr>
+                : filtered.map(seller => (
+                  <tr key={seller.id} className="align-top">
+                    <td className="p-3"><strong className="text-white">{seller.shopName || 'Chưa đặt tên'}</strong><div className="text-[10px] text-slate-500">#{seller.id}</div></td>
+                    <td className="p-3">{seller.name}<div className="text-slate-500">{seller.email}</div><div className="text-slate-500">{seller.phone || '—'}</div></td>
+                    <td className="p-3"><div>{seller.businessCategory || '—'}</div><div className="max-w-xs text-slate-500">{seller.shopAddress || '—'}</div></td>
+                    <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] ${seller.status === 'active' ? 'bg-emerald-500/10 text-emerald-300' : seller.status === 'inactive' ? 'bg-amber-500/10 text-amber-300' : 'bg-rose-500/10 text-rose-300'}`}>{label(seller.status)}</span></td>
+                    <td className="p-3 text-slate-400">{seller.createdAt ? new Date(seller.createdAt).toLocaleDateString('vi-VN') : '—'}</td>
+                    <td className="p-3">
+                      <div className="flex justify-end gap-2">
+                        {seller.status === 'inactive' && <>
+                          <button disabled={busyId === Number(seller.id)} onClick={() => void handleReview(seller, 'approve')} className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold inline-flex items-center gap-1"><UserCheck className="w-3 h-3" />Duyệt</button>
+                          <button disabled={busyId === Number(seller.id)} onClick={() => void handleReview(seller, 'reject')} className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-900 disabled:opacity-50 text-rose-300 font-bold">Từ chối</button>
+                        </>}
+                        {seller.status === 'active' && <button onClick={() => void handleStatus(seller, 'banned')} className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 text-rose-300 inline-flex items-center gap-1"><ShieldAlert className="w-3 h-3" />Khóa shop</button>}
+                        {seller.status === 'banned' && <button onClick={() => void handleStatus(seller, 'active')} className="px-2.5 py-1.5 rounded-lg bg-blue-500/10 text-blue-300">Mở khóa</button>}
                       </div>
                     </td>
                   </tr>
-                );
-              })}
+                ))}
+              {!loading && filtered.length === 0 && <tr><td colSpan={6} className="p-10 text-center text-slate-500">Không có hồ sơ phù hợp.</td></tr>}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 };

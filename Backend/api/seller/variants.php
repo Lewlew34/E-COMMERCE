@@ -36,6 +36,10 @@ if ($sku === '' || $price === false || $price <= 0 || $stock === false || $stock
 }
 
 $pdo->beginTransaction();
+$pdo->prepare(
+    'UPDATE products SET status = "pending_review"
+     WHERE id = :product_id AND seller_id = :seller_id'
+)->execute(['product_id' => $productId, 'seller_id' => $sellerId]);
 $stmt = $pdo->prepare(
     'INSERT INTO product_variants (product_id, sku, price, compare_at_price, stock_quantity, attributes, image)
      VALUES (:product_id, :sku, :price, :compare_price, :stock, :attributes, :image)'

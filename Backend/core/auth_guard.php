@@ -39,6 +39,11 @@ function require_seller(): array
     if (!in_array($auth['role'], ['staff', 'seller'], true)) {
         json_error('Vui lòng đăng nhập bằng tài khoản Người bán (Seller).', 403);
     }
+    $stmt = get_db_connection()->prepare('SELECT status FROM users WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $auth['id']]);
+    if ($stmt->fetchColumn() !== 'active') {
+        json_error('Gian hàng chưa được phê duyệt hoặc hiện không hoạt động.', 403);
+    }
     return $auth;
 }
 
@@ -50,6 +55,12 @@ function require_admin(): array
     $auth = require_auth();
     if ($auth['role'] !== 'admin') {
         json_error('Thao tác này yêu cầu quyền Quản trị viên (Admin).', 403);
+    }
+    $stmt = get_db_connection()->prepare('SELECT role, status FROM users WHERE id = :id LIMIT 1');
+    $stmt->execute(['id' => $auth['id']]);
+    $user = $stmt->fetch();
+    if (!$user || $user['role'] !== 'admin' || $user['status'] !== 'active') {
+        json_error('Tài khoản không còn quyền quản trị hoạt động.', 403);
     }
     return $auth;
 }

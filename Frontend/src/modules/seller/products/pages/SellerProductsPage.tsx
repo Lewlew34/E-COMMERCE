@@ -418,6 +418,11 @@ export const SellerProductsPage: React.FC = () => {
                         />
                         <div>
                           <div className="font-bold text-slate-900 line-clamp-1">{p.name}</div>
+                          {p.status !== 'published' && (
+                            <div className={`mt-1 text-[10px] font-semibold ${p.status === 'rejected' ? 'text-rose-600' : 'text-amber-600'}`}>
+                              {p.status === 'rejected' ? 'Bị từ chối — chỉnh sửa để gửi duyệt lại' : 'Đang chờ Admin duyệt'}
+                            </div>
+                          )}
                           <div className="text-[10px] text-slate-400 font-mono">ID: #{p.id}</div>
                         </div>
                       </div>

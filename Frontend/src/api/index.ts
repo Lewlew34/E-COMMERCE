@@ -9,3 +9,4 @@ export * from './seller/sellerOrderApi';
 export * from './seller/sellerMetricsApi';
 export * from './admin/adminUserApi';
 export * from './admin/adminMetricsApi';
+export * from './admin/adminModerationApi';

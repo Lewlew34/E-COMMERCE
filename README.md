@@ -14,7 +14,7 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
   - **Điều hướng:** [React Router v7](https://reactrouter.com/)
   - **State & Storage:** Context API (`CartContext`, `WishlistContext`, `ToastContext`, `AuthContext`) kết hợp đồng bộ bền vững qua `localStorage`.
 - **Cơ sở dữ liệu (Database Schema):**
-  - Thiết kế chuẩn 15 bảng quan hệ (`script.sql`) hỗ trợ đa biến thể, quản lý kho, flash sale và sổ địa chỉ giao hàng.
+  - MySQL/MariaDB `techecommercedb` lưu sản phẩm, đơn hàng, kho và tài khoản; migration bổ sung quyền sở hữu gian hàng cùng trạng thái xử lý Seller.
 - **Backend:**
   - **PHP + MySQL/MariaDB** chạy qua XAMPP, dùng session và API JSON cho đăng nhập, mua hàng và Seller Center.
 
@@ -43,8 +43,11 @@ E-COMMERCE/
 │       │   │   ├── products/           # Quản lý thiết bị đa biến thể (SKU, giá, tồn kho) & Thêm mới
 │       │   │   └── orders/             # Tiếp nhận đơn, quy trình duyệt đơn & bàn giao vận chuyển
 │       │   └── admin/                  # Kênh Quản Trị Viên (Admin Center)
-│       │       ├── dashboard/          # Thống kê chỉ số GMV toàn sàn, phân bổ ngành hàng
-│       │       └── users/              # Quản lý người dùng và duyệt tài khoản
+│       │       ├── dashboard/          # GMV, doanh thu đã giao, đơn hàng và hàng chờ duyệt
+│       │       ├── reports/            # Báo cáo theo kỳ và theo từng gian hàng
+│       │       ├── sellers/            # Duyệt và quản lý gian hàng
+│       │       ├── products/           # Duyệt sản phẩm của Seller
+│       │       └── users/              # Quản lý người dùng
 │       ├── contexts/                   # Quản lý trạng thái toàn cục (Auth, Cart, Wishlist, Toast)
 │       ├── services/                   # Dữ liệu mẫu (Database Mock) & Tầng lưu trữ (Storage Service)
 │       ├── routes/                     # Hệ thống định tuyến & Bảo vệ phân quyền (ProtectedRoute)
@@ -98,17 +101,17 @@ E-COMMERCE/
 - **Dashboard và phân tích:** doanh thu đơn đã giao, trạng thái đơn, tồn kho thấp và sản phẩm bán chạy lấy từ dữ liệu thực; không có bảng đánh giá/lượt xem trong schema nên không hiển thị số giả.
 
 ### 3. Kênh Quản Trị Viên (Admin Center)
-- **Bảng điều khiển tổng quan (`/admin/dashboard`):**
-  - Theo dõi chỉ số doanh thu (GMV), tăng trưởng đơn hàng toàn sàn.
-  - Thống kê tỷ trọng doanh số theo từng nhóm ngành hàng công nghệ.
-- **Quản trị người dùng sàn (`/admin/users`):**
-  - Danh sách tài khoản người dùng, vai trò (`customer`, `seller`, `admin`) và trạng thái hoạt động.
+- **Bảng điều khiển & báo cáo (`/admin/dashboard`, `/admin/reports`):** GMV, doanh thu đơn đã giao, số đơn hàng theo ngày/tuần/tháng/năm; so sánh GMV, doanh thu đã giao và lượng đơn riêng cho từng shop. Báo cáo theo shop có thể xuất CSV.
+- **Duyệt gian hàng (`/admin/sellers`):** hồ sơ Seller mới đăng ký ở trạng thái chờ; Admin có thể duyệt, từ chối, khóa hoặc mở khóa shop. Seller chưa được duyệt không thể đăng nhập vào Seller Center.
+- **Duyệt sản phẩm (`/admin/products`):** xem mô tả, thông số, ảnh, giá, tồn kho và shop gửi sản phẩm; duyệt để đăng công khai hoặc từ chối. Thêm/sửa sản phẩm hay biến thể cần được duyệt lại.
+- Sản phẩm của shop chưa được duyệt hoặc đang bị khóa sẽ không xuất hiện trên storefront và không thể checkout, kể cả khi khách còn giữ sản phẩm trong giỏ.
+- **Quản trị người dùng (`/admin/users`):** xem tài khoản, vai trò và trạng thái hoạt động.
 
 ---
 
-## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu Mô Phỏng (`script.sql`)
+## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu (`techecommercedb`)
 
-Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô phỏng khớp hoàn toàn với **15 bảng** trong database:
+Database gồm các bảng nghiệp vụ chính và bảng `seller_order_status` được thêm bởi migration Seller:
 
 | STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
 | :---: | :--- | :--- |
@@ -127,6 +130,7 @@ Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô 
 | 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale (Giá sốc, giới hạn số suất, đã bán) |
 | 14 | `wishlists` | Danh sách sản phẩm được khách hàng lưu yêu thích |
 | 15 | `inventory_logs` | Lịch sử biến động kho (Tự động trừ tồn kho khi phát sinh đơn hàng) |
+| 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn nhiều shop |
 
 ---
 
@@ -141,8 +145,15 @@ Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô 
 1. Mở XAMPP Control Panel và khởi chạy **Apache** cùng **MySQL**.
 2. Đặt/cập nhật thư mục `Backend` của dự án tại `C:\xampp\htdocs\TechMart\Backend`. Frontend hiện gọi API tại `http://localhost/TechMart/Backend/api`.
 3. Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, rồi import `Backend/migrations/20261108_seller_center.sql` **một lần duy nhất**. Migration thêm thông tin gian hàng, quyền sở hữu sản phẩm/đơn hàng và trạng thái xử lý riêng của Seller. Không chạy lại sau khi đã import.
-4. Cấu hình kết nối MySQL mặc định nằm trong `Backend/api/_seller_common.php` (host `localhost`, database `techecommercedb`, user `root`, mật khẩu trống). Nếu cấu hình XAMPP khác, cập nhật host/user/password tại đó và trong `Backend/api/products.php`.
-5. Đăng ký tài khoản tại trang đăng ký Người bán. Các sản phẩm cũ không tự động thuộc về tài khoản mới. Để giao sản phẩm cũ cho Seller, chạy thủ công sau khi thay email và ID sản phẩm phù hợp:
+4. Cấu hình kết nối MySQL mặc định nằm trong `Backend/config/database.php` (host `localhost`, database `techecommercedb`, user `root`, mật khẩu trống). Nếu XAMPP của bạn dùng cấu hình khác, cập nhật file này.
+5. Nếu database chưa có tài khoản Admin đang hoạt động, mở PowerShell tại thư mục dự án và tạo một tài khoản riêng bằng CLI:
+
+   ```powershell
+   C:\xampp\php\php.exe Backend\scripts\create_admin.php admin@example.com "Quan tri vien"
+   ```
+
+   Nhập mật khẩu tối thiểu 12 ký tự tại dấu nhắc (ký tự sẽ hiển thị; hãy dùng terminal riêng tư). Script chỉ chạy bằng CLI, không tạo tài khoản qua web và không thay đổi email đã tồn tại.
+6. Đăng ký tài khoản tại trang đăng ký Người bán. Hồ sơ sẽ ở trạng thái chờ Admin duyệt; Seller chưa được duyệt không thể đăng nhập. Các sản phẩm cũ không tự động thuộc về tài khoản mới. Để giao sản phẩm cũ cho Seller, chạy thủ công sau khi thay email và ID sản phẩm phù hợp:
 
    ```sql
    UPDATE products
@@ -156,8 +167,8 @@ Hệ thống đã chuẩn hóa TypeScript Interfaces và tầng dữ liệu mô 
    WHERE oi.seller_id IS NULL;
    ```
 
-6. Đăng ký tài khoản khách hàng riêng để thử checkout. Đăng nhập Seller ở phiên trình duyệt này; đơn đặt cho sản phẩm đã gán Seller sẽ xuất hiện trong Seller Center. Tài khoản/demo đăng nhập cũ chạy local không tạo đơn database.
-7. Để tạo một đơn hàng thử nghiệm mà không cần thao tác checkout, chỉnh email Seller/Customer và slug sản phẩm trong `Backend/seed_seller_test.sql`, rồi chạy file đó trong phpMyAdmin. Script chỉ gán sản phẩm được chọn, tạo một đơn chờ xác nhận và trừ một sản phẩm tồn kho; chạy mỗi lần sẽ tạo thêm một đơn mới.
+7. Đăng ký tài khoản khách hàng riêng để thử checkout. Seller chỉ được vào Seller Center sau khi Admin duyệt hồ sơ. Đơn đặt cho sản phẩm đã gán Seller sẽ xuất hiện trong Seller Center. Tài khoản/demo đăng nhập cũ chạy local không tạo đơn database.
+8. Để tạo một đơn hàng thử nghiệm mà không cần thao tác checkout, chỉnh email Seller/Customer và slug sản phẩm trong `Backend/seed_seller_test.sql`, rồi chạy file đó trong phpMyAdmin. Script chỉ gán sản phẩm được chọn, tạo một đơn chờ xác nhận và trừ một sản phẩm tồn kho; chạy mỗi lần sẽ tạo thêm một đơn mới.
 
 ### Chạy phân hệ Frontend:
 ```powershell
@@ -173,7 +184,7 @@ npm run dev
 
 Ứng dụng sẽ chạy tại địa chỉ: **`http://localhost:3000`**
 
-Nếu trình duyệt dùng địa chỉ `http://127.0.0.1:3000`, thêm origin đó (và origin thực tế) vào danh sách cho phép trong `Backend/api/_seller_common.php`.
+Nếu trình duyệt dùng địa chỉ `http://127.0.0.1:3000`, thêm origin đó (và origin thực tế) vào danh sách cho phép trong `Backend/config/cors.php`.
 
 ### Bật live chat Tawk.to:
 1. Tạo tài khoản tại [Tawk.to](https://www.tawk.to/), tạo Property cho TechMart và thêm website đang chạy vào danh sách domain được phép nếu Tawk yêu cầu.
@@ -199,3 +210,4 @@ Không commit `.env.local`; hai ID dùng để nhúng widget trên trình duyệ
   - 🏪 **Người Bán (Seller Center)**: Quản lý kho sản phẩm biến thể, duyệt đơn hàng.
   - 👑 **Quản Trị Viên (Admin Portal)**: Bảng điều khiển GMV, quản lý người dùng.
 - Đây là chuyển vai trò demo phía giao diện, không thay thế phiên PHP/MySQL và không dùng cho đơn hàng thực.
+- Để xem dữ liệu Admin thật từ MySQL, tạo tài khoản Admin bằng CLI ở bước cấu hình Backend rồi đăng nhập bằng tài khoản đó; Role Switcher không cấp quyền Admin cho API.

@@ -30,6 +30,7 @@ import { AdminUsersPage } from '../modules/admin/users/pages/AdminUsersPage';
 import { AdminSellersPage } from '../modules/admin/sellers/pages/AdminSellersPage';
 import { AdminCategoriesPage } from '../modules/admin/categories/pages/AdminCategoriesPage';
 import { AdminReportsPage } from '../modules/admin/reports/pages/AdminReportsPage';
+import { AdminProductsPage } from '../modules/admin/products/pages/AdminProductsPage';
 import { AdminSettingsPage } from '../modules/admin/settings/pages/AdminSettingsPage';
 
 // Seller Pages
@@ -70,6 +71,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="sellers" element={<AdminSellersPage />} />
+            <Route path="products" element={<AdminProductsPage />} />
             <Route path="categories" element={<AdminCategoriesPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />

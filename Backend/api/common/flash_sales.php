@@ -18,11 +18,13 @@ try {
         JOIN flash_sale_items fsi ON fsi.flash_sale_id = fs.id
         JOIN product_variants v ON v.id = fsi.variant_id
         JOIN products p ON p.id = v.product_id
+        LEFT JOIN users seller ON seller.id = p.seller_id
         LEFT JOIN brands b ON b.id = p.brand_id
         LEFT JOIN categories c ON c.id = p.category_id
         WHERE NOW() BETWEEN fs.start_time AND fs.end_time
           AND fsi.sold_count < fsi.stock_limit
           AND p.status = 'published'
+          AND (p.seller_id IS NULL OR seller.status = 'active')
         ORDER BY fs.end_time ASC
     ");
     $stmt->execute();
