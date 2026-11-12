@@ -119,7 +119,7 @@ export const CheckoutPage: React.FC = () => {
 
       const newOrder = orderService.createOrder({
         userId: Number(user?.id) || 1,
-        orderCode: databaseOrder.orderCode || ('TECHMART' + Math.floor(100000 + Math.random() * 900000)),
+        orderCode: databaseOrder.orderCode || ('LHKTECH' + Math.floor(100000 + Math.random() * 900000)),
         totalAmount: databaseOrder.totalAmount ?? selectedSubtotal,
         shippingFee: databaseOrder.shippingFee ?? shippingFee,
         finalAmount: databaseOrder.finalAmount ?? finalTotal,
@@ -290,8 +290,8 @@ export const CheckoutPage: React.FC = () => {
                       <div className="space-y-1">
                         <div className="text-slate-400 text-[11px]">Ngân hàng: <span className="text-white font-bold">MB Bank (Quân Đội)</span></div>
                         <div className="text-slate-400 text-[11px]">Số tài khoản: <span className="text-blue-400 font-mono font-bold">090123456789</span></div>
-                        <div className="text-slate-400 text-[11px]">Chủ tài khoản: <span className="text-white font-bold">CONG TY CONG NGHE TECHMART VN</span></div>
-                        <div className="text-slate-400 text-[11px]">Nội dung: <span className="text-amber-400 font-mono font-bold">TECHMART DEMO</span></div>
+                        <div className="text-slate-400 text-[11px]">Chủ tài khoản: <span className="text-white font-bold">CONG TY CONG NGHE LHK TECH VN</span></div>
+                        <div className="text-slate-400 text-[11px]">Nội dung: <span className="text-amber-400 font-mono font-bold">LHK TECH DEMO</span></div>
                       </div>
                     </div>
                   )}
@@ -335,7 +335,7 @@ export const CheckoutPage: React.FC = () => {
                         <div className="text-rose-400 font-bold flex items-center gap-1 text-xs">
                           <Zap className="w-3.5 h-3.5 fill-rose-400" /> Cổng VNPAY-QR Trực Tuyến
                         </div>
-                        <div className="text-slate-300 text-[11px]">Đơn vị chấp nhận: <span className="text-white font-bold">TECHMART E-COMMERCE</span></div>
+                        <div className="text-slate-300 text-[11px]">Đơn vị chấp nhận: <span className="text-white font-bold">LHK TECH E-COMMERCE</span></div>
                         <div className="text-slate-300 text-[11px]">Số tiền thanh toán: <span className="text-blue-400 font-mono font-bold">{formatCurrencyVN(finalTotal)}</span></div>
                         <div className="text-[10px] text-slate-400 mt-0.5">Mở app Ngân hàng (MB, Vietcombank, Agribank...) quét mã QR để hoàn tất.</div>
                       </div>
@@ -439,7 +439,7 @@ export const CheckoutPage: React.FC = () => {
             <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-[11px] text-slate-500 space-y-1.5">
               <div className="flex items-center gap-1.5 font-bold text-slate-700">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Bảo chứng TechMart</span>
+                <span>Bảo chứng LHK Tech</span>
               </div>
               <p>Mỗi đơn hàng đều được niêm phong hộp và có tem bảo hành điện tử chính hãng kích hoạt theo số Serial / IMEI.</p>
             </div>
