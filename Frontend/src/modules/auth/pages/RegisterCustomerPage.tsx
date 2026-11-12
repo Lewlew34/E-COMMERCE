@@ -47,7 +47,7 @@ export const RegisterCustomerPage: React.FC = () => {
       <div className="text-center mb-6">
         <h2 className="text-2xl font-black text-white">Đăng Ký Tài Khoản Mua Sắm</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Gia nhập cộng đồng người dùng công nghệ tại TechMart
+          Gia nhập cộng đồng người dùng công nghệ tại LHK Tech
         </p>
       </div>
 

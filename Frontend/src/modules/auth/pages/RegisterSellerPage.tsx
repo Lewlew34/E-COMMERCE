@@ -48,7 +48,7 @@ export const RegisterSellerPage: React.FC = () => {
         </div>
         <h2 className="text-2xl font-black text-white">Đăng Ký Mở Gian Hàng Công Nghệ</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Trở thành đối tác kinh doanh trên nền tảng TechMart Seller Center
+          Trở thành đối tác kinh doanh trên nền tảng LHK Tech Seller Center
         </p>
       </div>
 

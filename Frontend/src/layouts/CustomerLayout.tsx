@@ -82,14 +82,12 @@ export const CustomerLayout: React.FC = () => {
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 group-hover:scale-105 transition-transform">
-              <Cpu className="w-6 h-6" />
-            </div>
-            <div>
-              <span className="text-xl font-black tracking-tight text-slate-900">TECH<span className="text-blue-600">MART</span></span>
-              <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400 -mt-1">Digital Hub</span>
-            </div>
+          <Link to="/" className="flex items-center group py-0.5" title="LHK Tech - Trang chủ">
+            <img
+              src="/logo-lhk-tech.png"
+              alt="LHK Tech"
+              className="h-10 w-auto object-contain transition-transform group-hover:scale-105"
+            />
           </Link>
 
           {/* Search Bar */}
@@ -272,11 +270,14 @@ export const CustomerLayout: React.FC = () => {
       <footer className="bg-slate-900 text-slate-400 text-sm mt-16 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 py-12 grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white">
-                <Cpu className="w-5 h-5" />
+            <div className="mb-4">
+              <div className="inline-block bg-white px-3 py-1.5 rounded-xl shadow-sm">
+                <img
+                  src="/logo-lhk-tech.png"
+                  alt="LHK Tech"
+                  className="h-8 w-auto object-contain"
+                />
               </div>
-              <span className="text-lg font-black text-white">TECH<span className="text-blue-500">MART</span></span>
             </div>
             <p className="text-xs text-slate-400 leading-relaxed mb-4">
               Sàn thương mại điện tử chuyên biệt các thiết bị công nghệ hàng đầu: Laptop gaming, PC đồ họa, Smartphone chính hãng và phụ kiện cao cấp.
@@ -287,7 +288,7 @@ export const CustomerLayout: React.FC = () => {
           </div>
 
           <div>
-            <h4 className="text-white font-bold text-xs uppercase tracking-wider mb-3">Về TechMart</h4>
+            <h4 className="text-white font-bold text-xs uppercase tracking-wider mb-3">Về LHK Tech</h4>
             <ul className="space-y-2 text-xs">
               <li><a href="#" className="hover:text-white transition-colors">Giới thiệu nền tảng</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Tuyển dụng nhân tài</a></li>
@@ -309,7 +310,7 @@ export const CustomerLayout: React.FC = () => {
           <div>
             <h4 className="text-white font-bold text-xs uppercase tracking-wider mb-3">Dành cho đối tác</h4>
             <p className="text-xs text-slate-400 mb-3">
-              Mở gian hàng kinh doanh thiết bị công nghệ trên TechMart để tiếp cận hàng triệu khách hàng tiềm năng.
+              Mở gian hàng kinh doanh thiết bị công nghệ trên LHK Tech để tiếp cận hàng triệu khách hàng tiềm năng.
             </p>
             <Link
               to="/seller/register"
@@ -321,7 +322,7 @@ export const CustomerLayout: React.FC = () => {
         </div>
 
         <div className="border-t border-slate-800 py-4 text-center text-xs text-slate-500">
-          © 2026 TechMart E-Commerce Platform. Xây dựng bằng React + TypeScript + Tailwind CSS.
+          © 2026 LHK Tech E-Commerce Platform. Xây dựng bằng React + TypeScript + Tailwind CSS.
         </div>
       </footer>
 

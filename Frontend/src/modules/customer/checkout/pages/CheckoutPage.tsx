@@ -14,12 +14,11 @@ import {
   Zap
 } from 'lucide-react';
 import { useCart } from '../../../../contexts/CartContext';
-import { addressService, orderService } from '../../../../services/storageService';
+import { addressService, orderService, sellerApiService } from '../../../../services/storageService';
 import type { UserAddress, PaymentMethod } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
 import { useAuth } from '../../../../contexts/AuthContext';
-import { sellerApiService } from '../../../../services/storageService';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
@@ -81,7 +80,7 @@ export const CheckoutPage: React.FC = () => {
     }
 
     const created = addressService.add({
-      userId: 1,
+      userId: Number(user?.id) || 1,
       recipientName: newRecipientName,
       phone: newPhone,
       city: newCity,
@@ -106,51 +105,45 @@ export const CheckoutPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      const normalizedPaymentMethod: PaymentMethod =
+        paymentMethod === 'VNPAY' ? 'BANK_TRANSFER' : paymentMethod;
+
       const databaseOrder = await sellerApiService.createCustomerOrder({
-        items: selectedItems.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
+        items: selectedItems.map(item => ({
+          variantId: item.variantId,
+          quantity: item.quantity
+        })),
         shippingAddress: selectedAddress,
-        paymentMethod
+        paymentMethod: normalizedPaymentMethod
       });
 
-<<<<<<< HEAD
-    const actualPaymentMethod: PaymentMethod = paymentMethod === 'VNPAY' ? 'BANK_TRANSFER' : paymentMethod;
-
-    const newOrder = orderService.createOrder({
-      userId: 1,
-      orderCode,
-      totalAmount: selectedSubtotal,
-      shippingFee,
-      finalAmount: finalTotal,
-      paymentStatus: (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'VNPAY') ? 'paid' : 'pending',
-      orderStatus: 'pending',
-      paymentMethod: actualPaymentMethod,
-      shippingAddressSnapshot: selectedAddress,
-      items: selectedItems.map((item, index) => ({
-        id: Date.now() + index,
-        orderId: 0,
-        variantId: item.variantId,
-        productNameSnapshot: item.product.name,
-        variantAttributesSnapshot: item.variant.attributes,
-        price: item.variant.price,
-        quantity: item.quantity,
-        totalPrice: item.variant.price * item.quantity,
-        image: item.variant.image
-      }))
-    });
-=======
       const newOrder = orderService.createOrder({
         userId: Number(user?.id) || 1,
-        orderCode: databaseOrder.orderCode,
-        totalAmount: databaseOrder.totalAmount,
-        shippingFee: databaseOrder.shippingFee,
-        finalAmount: databaseOrder.finalAmount,
-        paymentStatus: databaseOrder.paymentStatus,
-        orderStatus: databaseOrder.orderStatus,
-        paymentMethod: databaseOrder.paymentMethod,
-        shippingAddressSnapshot: databaseOrder.shippingAddressSnapshot,
-        items: databaseOrder.items
+        orderCode: databaseOrder.orderCode || ('TECHMART' + Math.floor(100000 + Math.random() * 900000)),
+        totalAmount: databaseOrder.totalAmount ?? selectedSubtotal,
+        shippingFee: databaseOrder.shippingFee ?? shippingFee,
+        finalAmount: databaseOrder.finalAmount ?? finalTotal,
+        paymentStatus:
+          databaseOrder.paymentStatus ||
+          (paymentMethod === 'BANK_TRANSFER' || paymentMethod === 'VNPAY' ? 'paid' : 'pending'),
+        orderStatus: databaseOrder.orderStatus || 'pending',
+        paymentMethod: databaseOrder.paymentMethod || normalizedPaymentMethod,
+        shippingAddressSnapshot: databaseOrder.shippingAddressSnapshot || selectedAddress,
+        items:
+          databaseOrder.items && databaseOrder.items.length > 0
+            ? databaseOrder.items
+            : selectedItems.map((item, index) => ({
+                id: Date.now() + index,
+                orderId: 0,
+                variantId: item.variantId,
+                productNameSnapshot: item.product.name,
+                variantAttributesSnapshot: item.variant.attributes,
+                price: item.variant.price,
+                quantity: item.quantity,
+                totalPrice: item.variant.price * item.quantity,
+                image: item.variant.image
+              }))
       });
->>>>>>> e6785b6b63933606a38e724a46e711bd144d9d8b
 
       selectedItems.forEach(item => removeFromCart(item.variantId));
       navigate(`/order-success/${newOrder.orderCode}`);
@@ -305,7 +298,7 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </label>
 
-              {/* Option 3: VNPAY-QR (KHUNG QR BUNG RA KHI CHỌN) */}
+              {/* Option 3: VNPAY-QR */}
               <label
                 onClick={() => setPaymentMethod('VNPAY')}
                 className={`flex items-start gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer ${
@@ -329,7 +322,6 @@ export const CheckoutPage: React.FC = () => {
                     Quét mã QR qua ứng dụng Mobile Banking bất kỳ hoặc thanh toán bằng thẻ Visa/Master/JCB.
                   </p>
 
-                  {/* Khung giao diện quét mã QR VNPAY */}
                   {paymentMethod === 'VNPAY' && (
                     <div className="mt-4 p-4 rounded-xl bg-gradient-to-br from-slate-900 to-blue-950 text-white flex flex-col sm:flex-row items-center gap-4 text-xs animate-in fade-in duration-200">
                       <div className="w-24 h-24 bg-white p-1.5 rounded-lg shrink-0 flex items-center justify-center shadow-md">

@@ -63,7 +63,7 @@ export const LoginPage: React.FC = () => {
         </div>
         <h2 className="text-2xl font-black text-white">Đăng Nhập Tài Khoản</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Truy cập hệ sinh thái thương mại điện tử công nghệ TechMart
+          Truy cập hệ sinh thái thương mại điện tử công nghệ LHK Tech
         </p>
       </div>
 
