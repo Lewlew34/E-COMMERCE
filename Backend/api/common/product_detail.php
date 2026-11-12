@@ -26,6 +26,7 @@ try {
         LEFT JOIN categories c ON p.category_id = c.id
         LEFT JOIN users u ON p.seller_id = u.id
         WHERE " . ($id ? "p.id = :id" : "p.slug = :slug") . " AND p.status = 'published'
+          AND (p.seller_id IS NULL OR u.status = 'active')
         LIMIT 1
     ";
 

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Store, User as UserIcon, Mail, Lock, Phone, MapPin, Tag, ArrowRight } from 'lucide-react';
-import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { sellerApiService } from '../../../services/storageService';
 
@@ -16,7 +15,6 @@ export const RegisterSellerPage: React.FC = () => {
     address: '',
     password: '',
   });
-  const { loginWithUser } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -29,10 +27,9 @@ export const RegisterSellerPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const user = await sellerApiService.register(formData);
-      loginWithUser(user);
-      showToast('Đăng ký gian hàng thành công.', 'success');
-      navigate('/seller/dashboard');
+      await sellerApiService.register(formData);
+      showToast('Đã gửi hồ sơ. Bạn có thể đăng nhập sau khi Admin phê duyệt gian hàng.', 'success');
+      navigate('/login');
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Không thể đăng ký gian hàng.', 'error');
     } finally {
@@ -48,7 +45,7 @@ export const RegisterSellerPage: React.FC = () => {
         </div>
         <h2 className="text-2xl font-black text-white">Đăng Ký Mở Gian Hàng Công Nghệ</h2>
         <p className="text-xs text-slate-400 mt-1">
-          Trở thành đối tác kinh doanh trên nền tảng LHK Tech Seller Center
+          Trở thành đối tác kinh doanh trên LHK Tech — hồ sơ sẽ được Admin xét duyệt trước khi mở bán.
         </p>
       </div>
 

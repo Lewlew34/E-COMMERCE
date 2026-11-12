@@ -2,7 +2,7 @@
 // Supporting both lowercase (DB standard) and uppercase aliases for backward compatibility.
 export type UserRole = 'admin' | 'staff' | 'customer' | 'seller' | 'ADMIN' | 'SELLER' | 'CUSTOMER';
 
-export type UserStatus = 'active' | 'inactive' | 'banned';
+export type UserStatus = 'active' | 'inactive' | 'banned' | 'rejected';
 
 export interface User {
   id: string | number;
@@ -14,6 +14,8 @@ export interface User {
   status?: UserStatus;
   avatar?: string;
   shopName?: string; // Dành riêng cho Người bán (staff/seller)
+  shopAddress?: string | null;
+  businessCategory?: string | null;
   createdAt?: string;
   created_at?: string;
   updated_at?: string;

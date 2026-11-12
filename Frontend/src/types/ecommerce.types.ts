@@ -26,7 +26,7 @@ export interface ProductVariant {
   image: string;
 }
 
-export type ProductStatus = 'draft' | 'active' | 'archived';
+export type ProductStatus = 'draft' | 'active' | 'archived' | 'pending_review' | 'published' | 'rejected';
 
 export interface Product {
   id: number;

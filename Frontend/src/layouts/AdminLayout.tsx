@@ -4,6 +4,7 @@ import {
   LayoutDashboard, 
   Users, 
   Store, 
+  PackageCheck,
   Tags, 
   BarChart3, 
   Settings, 
@@ -20,7 +21,8 @@ export const AdminLayout: React.FC = () => {
   const navItems: NavItemConfig[] = [
     { name: 'Tổng quan sàn (Dashboard)', path: '/admin/dashboard', icon: LayoutDashboard },
     { name: 'Quản lý Người dùng', path: '/admin/users', icon: Users },
-    { name: 'Duyệt Gian hàng (Sellers)', path: '/admin/sellers', icon: Store, badge: '2 mới' },
+    { name: 'Duyệt Gian hàng (Sellers)', path: '/admin/sellers', icon: Store },
+    { name: 'Duyệt sản phẩm', path: '/admin/products', icon: PackageCheck },
     { name: 'Danh mục & Thông số (Specs)', path: '/admin/categories', icon: Tags },
     { name: 'Báo cáo Doanh thu sàn', path: '/admin/reports', icon: BarChart3 },
     { name: 'Cài đặt hệ thống', path: '/admin/settings', icon: Settings },

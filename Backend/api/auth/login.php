@@ -31,6 +31,12 @@ if (!$user || !password_verify($password, $user['password_hash'])) {
 }
 
 if ($user['status'] !== 'active') {
+    if (in_array($user['role'], ['staff', 'seller'], true) && $user['status'] === 'inactive') {
+        json_error('Hồ sơ gian hàng đang chờ Admin phê duyệt. Bạn sẽ đăng nhập được sau khi được duyệt.', 403);
+    }
+    if (in_array($user['role'], ['staff', 'seller'], true) && $user['status'] === 'rejected') {
+        json_error('Hồ sơ đăng ký gian hàng đã bị từ chối. Vui lòng liên hệ quản trị viên.', 403);
+    }
     json_error('Tài khoản này đã bị khóa hoặc chưa được kích hoạt.', 403);
 }
 

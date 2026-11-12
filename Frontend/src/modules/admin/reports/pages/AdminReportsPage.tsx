@@ -1,272 +1,230 @@
-import React, { useState } from 'react';
-import { BarChart3, TrendingUp, DollarSign, CreditCard, ShoppingBag, Download, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { BarChart3, CalendarDays, Download, Search } from 'lucide-react';
+import { adminMetricsApi } from '../../../../api';
+import type { AdminReport, AdminReportPeriod } from '../../../../api';
 import { formatCurrencyVN } from '../../../../utils/format';
+import { useToast } from '../../../../contexts/ToastContext';
+
+function localDateValue(): string {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 export const AdminReportsPage: React.FC = () => {
-  const [timeRange, setTimeRange] = useState<'MONTH' | 'QUARTER' | 'YEAR'>('MONTH');
+  const [period, setPeriod] = useState<AdminReportPeriod>('month');
+  const [date, setDate] = useState(localDateValue);
+  const [search, setSearch] = useState('');
+  const [report, setReport] = useState<AdminReport | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const { showToast } = useToast();
 
-  // Transactions mapped to TechEcommerceDB [orders] & [payments] tables
-  const reportOrders = [
-    {
-      id: 1,
-      order_code: 'TECH-20261101-098',
-      customer: 'Nguyễn Văn Long',
-      total_amount: 36990000,
-      shipping_fee: 0,
-      final_amount: 36990000,
-      payment_method: 'BANK_TRANSFER',
-      payment_status: 'paid',
-      order_status: 'completed',
-      created_at: '2026-11-01 10:30',
-    },
-    {
-      id: 2,
-      order_code: 'TECH-20261031-045',
-      customer: 'Lê Hoàng Nam',
-      total_amount: 39180000,
-      shipping_fee: 0,
-      final_amount: 39180000,
-      payment_method: 'CREDIT_CARD',
-      payment_status: 'paid',
-      order_status: 'shipping',
-      created_at: '2026-10-31 16:15',
-    },
-    {
-      id: 3,
-      order_code: 'TECH-20261030-012',
-      customer: 'Vũ Thị Mai',
-      total_amount: 28990000,
-      shipping_fee: 30000,
-      final_amount: 29020000,
-      payment_method: 'COD',
-      payment_status: 'pending',
-      order_status: 'confirmed',
-      created_at: '2026-10-30 09:20',
-    },
-    {
-      id: 4,
-      order_code: 'TECH-20261028-088',
-      customer: 'Trần Đình Trọng',
-      total_amount: 15490000,
-      shipping_fee: 0,
-      final_amount: 15490000,
-      payment_method: 'BANK_TRANSFER',
-      payment_status: 'paid',
-      order_status: 'completed',
-      created_at: '2026-10-28 14:00',
-    },
-    {
-      id: 5,
-      order_code: 'TECH-20261025-003',
-      customer: 'Bùi Tiến Dũng',
-      total_amount: 44990000,
-      shipping_fee: 0,
-      final_amount: 44990000,
-      payment_method: 'CREDIT_CARD',
-      payment_status: 'refunded',
-      order_status: 'cancelled',
-      created_at: '2026-10-25 11:10',
-    },
-  ];
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError('');
+    adminMetricsApi.getMetrics(period, date)
+      .then(data => { if (active) setReport(data); })
+      .catch(loadError => {
+        if (!active) return;
+        const message = loadError instanceof Error ? loadError.message : 'Không tải được báo cáo.';
+        setError(message);
+        showToast(message, 'error');
+      })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [period, date]);
 
-  const totalGMV = 1485200000;
-  const netRevenue = 1440210000;
-  const totalOrders = 2840;
-  const completedOrders = 2690;
+  const shops = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return (report?.shops || []).filter(shop =>
+      !query || `${shop.shop_name || ''} ${shop.owner_name}`.toLocaleLowerCase().includes(query)
+    );
+  }, [report, search]);
+
+  const exportCsv = () => {
+    if (!report) return;
+    const rows = [
+      ['Shop', 'Chủ shop', 'GMV', 'Doanh thu đã giao', 'Số đơn', 'Số đơn đã giao', 'Số đơn hủy'],
+      ...shops.map(shop => [
+        shop.shop_name || '',
+        shop.owner_name,
+        String(shop.gmv),
+        String(shop.delivered_revenue),
+        String(shop.order_count),
+        String(shop.delivered_count),
+        String(shop.cancelled_count)
+      ])
+    ];
+    const csv = `\uFEFF${rows.map(row => row.map(value => `"${value.replaceAll('"', '""')}"`).join(',')).join('\r\n')}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `lhk-tech-doanh-thu-${period}-${date}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const periodLabel = period === 'day' ? 'Ngày' : period === 'week' ? 'Tuần' : period === 'year' ? 'Năm' : 'Tháng';
 
   return (
-    <div className="space-y-8 max-w-7xl">
-      {/* Top Header & Toolbar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+    <div className="space-y-6 max-w-7xl">
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
             <BarChart3 className="w-5 h-5 text-emerald-600" />
-            <span>Báo Cáo Doanh Thu & Chỉ Số Toàn Sàn</span>
+            Báo cáo doanh thu toàn sàn
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Dữ liệu tổng hợp từ các bảng [orders], [payments] và [order_items] trong CSDL LHK Tech
+          <p className="text-xs text-slate-500 mt-1">
+            GMV là tổng giá trị hàng hóa chưa tính phí ship, không bao gồm đơn đã hủy. Doanh thu đã giao chỉ tính đơn hoàn tất.
           </p>
         </div>
-
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-slate-400" />
           <select
-            value={timeRange}
-            onChange={(e) => setTimeRange(e.target.value as any)}
-            className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded-lg px-3 py-1.5 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+            value={period}
+            onChange={event => setPeriod(event.target.value as AdminReportPeriod)}
+            className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
           >
-            <option value="MONTH">Tháng 11/2026 (Hiện tại)</option>
-            <option value="QUARTER">Quý 4/2026</option>
-            <option value="YEAR">Cả năm 2026</option>
+            <option value="day">Theo ngày</option>
+            <option value="week">Theo tuần</option>
+            <option value="month">Theo tháng</option>
+            <option value="year">Theo năm</option>
           </select>
+          <input
+            type="date"
+            value={date}
+            onChange={event => setDate(event.target.value)}
+            className="bg-slate-50 border border-slate-200 text-xs text-slate-700 rounded-lg px-3 py-2 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+          />
           <button
             type="button"
-            onClick={() => alert('Đang xuất tệp báo cáo Excel/CSV...')}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition-colors cursor-pointer"
+            onClick={exportCsv}
+            disabled={!report}
+            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 disabled:opacity-50 px-3 py-2 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer"
           >
-            <Download className="w-3.5 h-3.5 text-blue-600" />
-            <span>Xuất file</span>
+            <Download className="w-3.5 h-3.5" />
+            Xuất CSV
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* KPI Financial Overview - Pure Typography, ZERO-BOX */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 pb-8 border-b border-slate-100">
-        <div>
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Tổng Giá Trị Giao Dịch (GMV)</span>
-            <DollarSign className="w-4 h-4 text-emerald-600" />
-          </div>
-          <div className="text-3xl font-black text-slate-900 mt-1.5 tracking-tight">
-            {formatCurrencyVN(totalGMV)}
-          </div>
-          <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600 font-semibold">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>+18.5% so với tháng trước</span>
-          </div>
+      {loading && !report ? (
+        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-10 text-center text-sm text-slate-500">
+          Đang tổng hợp dữ liệu...
         </div>
-
-        <div>
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Thanh Toán Thành Công (Paid)</span>
-            <CheckCircle2 className="w-4 h-4 text-blue-600" />
-          </div>
-          <div className="text-3xl font-black text-blue-600 mt-1.5 tracking-tight">
-            {formatCurrencyVN(netRevenue)}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1 font-mono">
-            Tỷ lệ thành công: 97.2%
-          </div>
+      ) : error && !report ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-8 text-center text-sm text-rose-700">
+          {error}
         </div>
+      ) : report && (
+        <>
+          <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              ['GMV toàn sàn', formatCurrencyVN(report.summary.gmv), 'Không gồm đơn hủy'],
+              ['Doanh thu đơn đã giao', formatCurrencyVN(report.summary.delivered_revenue), `${report.summary.delivered_count} đơn hoàn tất`],
+              ['Số đơn hàng', report.summary.order_count.toLocaleString('vi-VN'), `${report.summary.cancelled_count} đơn hủy`],
+              ['Khoảng thời gian', periodLabel, `${report.start.slice(0, 10)} — ${report.end_inclusive}`]
+            ].map(([label, value, note]) => (
+              <div key={label} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
+                <div className="text-xs font-medium text-slate-500">{label}</div>
+                <div className="text-xl font-black text-slate-900 mt-2">{value}</div>
+                <div className="text-[11px] text-slate-400 mt-1">{note}</div>
+              </div>
+            ))}
+          </div>
 
-        <div>
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Số Lượng Đơn Đặt Hàng</span>
-            <ShoppingBag className="w-4 h-4 text-amber-600" />
-          </div>
-          <div className="text-3xl font-black text-slate-900 mt-1.5 tracking-tight">
-            {totalOrders.toLocaleString()} đơn
-          </div>
-          <div className="text-[11px] text-emerald-600 mt-1">
-            {completedOrders} đơn giao thành công
-          </div>
-        </div>
-
-        <div>
-          <div className="flex items-center justify-between text-xs text-slate-500 font-medium">
-            <span>Phí Hoa Hồng Sàn Ước Tính</span>
-            <CreditCard className="w-4 h-4 text-purple-600" />
-          </div>
-          <div className="text-3xl font-black text-purple-600 mt-1.5 tracking-tight">
-            {formatCurrencyVN(Math.round(totalGMV * 0.05))}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Áp dụng mức 5% phí sàn công nghệ
-          </div>
-        </div>
-      </div>
-
-      {/* Payment Methods Breakdown - Flat display */}
-      <div className="pb-8 border-b border-slate-100">
-        <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4">
-          Phân bổ phương thức thanh toán ([payments].[payment_method])
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-800">Chuyển Khoản Ngân Hàng (BANK_TRANSFER)</span>
-              <span className="text-emerald-600 font-bold">58%</span>
+          <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-slate-900">Doanh thu riêng từng shop</h2>
+                <p className="text-[11px] text-slate-500 mt-1">Các đơn được tính theo dòng hàng đã gắn với từng Seller.</p>
+              </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  value={search}
+                  onChange={event => setSearch(event.target.value)}
+                  placeholder="Tìm tên shop..."
+                  className="pl-8 pr-3 py-2 rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-emerald-500 h-full rounded-full" style={{ width: '58%' }}></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] border-b border-slate-100">
+                  <tr>
+                    <th className="p-3">Gian hàng</th>
+                    <th className="p-3">Chủ shop</th>
+                    <th className="p-3">GMV trong kỳ</th>
+                    <th className="p-3">Doanh thu đã giao</th>
+                    <th className="p-3">Tổng đơn</th>
+                    <th className="p-3">Đã giao</th>
+                    <th className="p-3">Đã hủy</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {shops.map(shop => (
+                    <tr key={shop.seller_id} className="hover:bg-slate-50/60">
+                      <td className="p-3 font-semibold text-slate-900">{shop.shop_name || 'Chưa đặt tên'}</td>
+                      <td className="p-3">{shop.owner_name}</td>
+                      <td className="p-3">{formatCurrencyVN(shop.gmv)}</td>
+                      <td className="p-3 font-semibold text-emerald-600">{formatCurrencyVN(shop.delivered_revenue)}</td>
+                      <td className="p-3">{shop.order_count}</td>
+                      <td className="p-3">{shop.delivered_count}</td>
+                      <td className="p-3">{shop.cancelled_count}</td>
+                    </tr>
+                  ))}
+                  {shops.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-10 text-center text-slate-400">
+                        Không có dữ liệu shop trong khoảng thời gian này.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+          </section>
 
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-800">Thẻ Tín Dụng / Visa (CREDIT_CARD)</span>
-              <span className="text-blue-600 font-bold">32%</span>
+          <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-4 border-b border-slate-100">
+              <h2 className="text-sm font-bold text-slate-900">Đơn hàng trong kỳ đã chọn</h2>
             </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-blue-500 h-full rounded-full" style={{ width: '32%' }}></div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50 text-slate-500 uppercase text-[10px] border-b border-slate-100">
+                  <tr>
+                    <th className="p-3">Mã đơn</th>
+                    <th className="p-3">Khách hàng</th>
+                    <th className="p-3">Shop</th>
+                    <th className="p-3">Tổng thanh toán</th>
+                    <th className="p-3">Trạng thái</th>
+                    <th className="p-3">Thời gian</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {report.recent_orders.map(order => (
+                    <tr key={order.id} className="hover:bg-slate-50/60">
+                      <td className="p-3 font-mono font-semibold text-blue-600">{order.order_code}</td>
+                      <td className="p-3">{order.customer_name}</td>
+                      <td className="p-3">{order.shops || 'Chưa gán Seller'}</td>
+                      <td className="p-3 font-medium text-slate-900">{formatCurrencyVN(order.final_amount)}</td>
+                      <td className="p-3 capitalize">{order.order_status}</td>
+                      <td className="p-3 text-slate-500">{new Date(order.created_at).toLocaleString('vi-VN')}</td>
+                    </tr>
+                  ))}
+                  {report.recent_orders.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-10 text-center text-slate-400">Chưa có đơn hàng.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between text-xs mb-1.5">
-              <span className="font-semibold text-slate-800">Thanh Toán Khi Nhận (COD)</span>
-              <span className="text-amber-600 font-bold">10%</span>
-            </div>
-            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-              <div className="bg-amber-500 h-full rounded-full" style={{ width: '10%' }}></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Orders Transaction Log Table - Pure Table, NO BOX */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-bold text-slate-900">
-            Giao Dịch Đơn Hàng Gần Đây
-          </h3>
-          <span className="text-[11px] text-slate-400 font-mono">Hiển thị {reportOrders.length} giao dịch mẫu</span>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-700">
-            <thead className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-200">
-              <tr>
-                <th className="py-2.5 pr-4">Mã Đơn</th>
-                <th className="py-2.5 px-4">Khách Hàng</th>
-                <th className="py-2.5 px-4">Tổng Hàng</th>
-                <th className="py-2.5 px-4">Phí Vận Chuyển</th>
-                <th className="py-2.5 px-4">Tổng Thanh Toán</th>
-                <th className="py-2.5 px-4">Phương Thức</th>
-                <th className="py-2.5 px-4">Thanh Toán</th>
-                <th className="py-2.5 px-4">Trạng Thái Đơn</th>
-                <th className="py-2.5 pl-4 text-right">Thời Gian</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 font-medium">
-              {reportOrders.map(o => (
-                <tr key={o.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="py-3.5 pr-4 font-mono text-blue-600 font-bold">{o.order_code}</td>
-                  <td className="py-3.5 px-4 font-semibold text-slate-900">{o.customer}</td>
-                  <td className="py-3.5 px-4 font-mono text-slate-800">{formatCurrencyVN(o.total_amount)}</td>
-                  <td className="py-3.5 px-4 font-mono text-slate-400">{formatCurrencyVN(o.shipping_fee)}</td>
-                  <td className="py-3.5 px-4 font-mono font-bold text-slate-900">{formatCurrencyVN(o.final_amount)}</td>
-                  <td className="py-3.5 px-4">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-700">
-                      {o.payment_method}
-                    </span>
-                  </td>
-                  <td className="py-3.5 px-4">
-                    {o.payment_status === 'paid' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700">
-                        ✓ Đã thanh toán
-                      </span>
-                    )}
-                    {o.payment_status === 'pending' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700">
-                        Chờ thanh toán
-                      </span>
-                    )}
-                    {o.payment_status === 'refunded' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700">
-                        Đã hoàn tiền
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4">
-                    <span className="capitalize font-semibold text-slate-800">{o.order_status}</span>
-                  </td>
-                  <td className="py-3.5 pl-4 text-right font-mono text-[11px] text-slate-400">{o.created_at}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+          </section>
+        </>
+      )}
     </div>
   );
 };

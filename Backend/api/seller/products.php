@@ -143,7 +143,7 @@ if ($method === 'POST') {
 
     $stmt = $pdo->prepare(
         'INSERT INTO products (name, slug, brand_id, category_id, seller_id, description, specifications, status)
-         VALUES (:name, :slug, :brand_id, :category_id, :seller_id, :description, :specifications, "published")'
+         VALUES (:name, :slug, :brand_id, :category_id, :seller_id, :description, :specifications, "pending_review")'
     );
     $stmt->execute([
         'name' => $body['name'],
@@ -200,7 +200,8 @@ if ($method === 'PUT') {
 
     $pdo->prepare(
         'UPDATE products SET name = :name, brand_id = :brand_id, category_id = :category_id,
-         description = :description, specifications = :specifications WHERE id = :id AND seller_id = :seller_id'
+         description = :description, specifications = :specifications, status = "pending_review"
+         WHERE id = :id AND seller_id = :seller_id'
     )->execute([
         'name' => $body['name'],
         'brand_id' => $body['brand_id'],

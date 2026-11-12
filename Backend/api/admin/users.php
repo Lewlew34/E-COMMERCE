@@ -26,7 +26,7 @@ if ($method === 'PATCH') {
 
     if ($action === 'status') {
         $status = (string) ($body['status'] ?? '');
-        if (!in_array($status, ['active', 'banned'], true)) {
+        if (!in_array($status, ['active', 'inactive', 'banned', 'rejected'], true)) {
             json_error('Trạng thái người dùng không hợp lệ.', 422);
         }
         $stmt = $pdo->prepare('UPDATE users SET status = :status WHERE id = :id');

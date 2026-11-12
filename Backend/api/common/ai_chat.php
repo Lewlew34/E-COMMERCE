@@ -46,10 +46,12 @@ function fetch_ai_catalog(PDO $conn): array
         FROM products p
         LEFT JOIN brands b ON p.brand_id = b.id
         LEFT JOIN categories c ON p.category_id = c.id
+        LEFT JOIN users seller ON seller.id = p.seller_id
         LEFT JOIN product_variants v ON p.id = v.product_id
         LEFT JOIN flash_sale_items fsi ON fsi.variant_id = v.id
         LEFT JOIN flash_sales fs ON fs.id = fsi.flash_sale_id
         WHERE p.status = 'published'
+          AND (p.seller_id IS NULL OR seller.status = 'active')
         GROUP BY p.id, p.name, p.slug, p.description, p.specifications,
                  b.id, b.name, b.slug, b.logo, c.id, c.name, c.slug
         ORDER BY is_flash_sale DESC, p.id DESC

@@ -36,7 +36,7 @@ if ($action === 'create' && $method === 'POST') {
 
     $select = $pdo->prepare(
         'SELECT v.id AS variant_id, v.price, v.stock_quantity, v.attributes,
-                p.id AS product_id, p.name, p.status, p.seller_id,
+                p.id AS product_id, p.name, p.status, p.seller_id, seller.status AS seller_status,
                 COALESCE((
                   SELECT fsi.flash_sale_price FROM flash_sale_items fsi
                   JOIN flash_sales fs ON fs.id = fsi.flash_sale_id
@@ -45,6 +45,7 @@ if ($action === 'create' && $method === 'POST') {
                   ORDER BY fs.start_time DESC LIMIT 1
                 ), v.price) AS effective_price
          FROM product_variants v JOIN products p ON p.id = v.product_id
+         LEFT JOIN users seller ON seller.id = p.seller_id
          WHERE v.id = :variant_id FOR UPDATE'
     );
 
@@ -58,7 +59,8 @@ if ($action === 'create' && $method === 'POST') {
 
         $select->execute(['variant_id' => $variantId]);
         $variant = $select->fetch();
-        if (!$variant || $variant['status'] !== 'published') {
+        if (!$variant || $variant['status'] !== 'published'
+            || ($variant['seller_id'] !== null && $variant['seller_status'] !== 'active')) {
             $pdo->rollBack();
             json_error('Một sản phẩm trong đơn không còn khả dụng.', 409);
         }
