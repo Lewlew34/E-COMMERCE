@@ -42,7 +42,6 @@ E-COMMERCE/
 │   ├── core/                         # Các hàm tiện ích dùng chung
 │   │   ├── response.php              # Helper trả về JSON: json_success(), json_error()
 │   │   └── auth_guard.php            # Kiểm tra quyền & status thực từ DB
-│   ├── migrations/                   # Script migration SQL (20261108_seller_center.sql)
 │   ├── scripts/                      # Tiện ích CLI (create_admin.php)
 │   └── api/                          # HỆ THỐNG API CHIA THEO 5 NHÓM ROLE
 │       ├── common/                   # [Public/Guest] Sản phẩm, biến thể, danh mục, hãng, flash sale, ai_chat.php
@@ -62,7 +61,7 @@ E-COMMERCE/
         │   ├── customer/             # customerOrderApi.ts, customerAddressApi.ts
         │   ├── seller/               # sellerProductApi.ts, sellerOrderApi.ts, sellerMetricsApi.ts
         │   └── admin/                # adminUserApi.ts, adminMetricsApi.ts, adminModerationApi.ts
-        ├── components/               # UI components dùng chung (AIChatWidget, TawkToChat...)
+        ├── components/               # UI components dùng chung (AIChatWidget, TawkToChat, ui/)
         ├── contexts/                 # Quản lý State toàn cục (Auth, Cart, Wishlist, Toast)
         ├── layouts/                  # Layout theo vai trò (Customer, Seller, Admin, DashboardPortalLayout)
         ├── modules/                  # Phân hệ giao diện các trang
@@ -72,7 +71,7 @@ E-COMMERCE/
         │   └── admin/                # Dashboard, Reports, Sellers, Products, Users, Categories, Settings
         ├── services/                 # storageService.ts (adapter chuyển tiếp & mock data fallback)
         ├── types/                    # Định nghĩa kiểu dữ liệu TypeScript
-        └── utils/                    # Format tiền tệ VNĐ, date, validation
+        └── utils/                    # Format tiền tệ VNĐ (format.ts)
 ```
 
 ---
@@ -83,7 +82,7 @@ E-COMMERCE/
 - **Trang chủ & Flash Sale Giờ Vàng (`/`):** Đồng hồ đếm ngược Flash Sale, lưới sản phẩm nổi bật kèm thông số cấu hình tóm tắt.
 - **Danh Mục & Bộ Lọc Nâng Cao (`/catalog`):** Tìm kiếm thông minh (có dấu/không dấu), lọc theo Danh mục & Thương hiệu, sắp xếp theo giá.
 - **Chi Tiết Sản Phẩm (`/product/:id`):** Bộ chọn biến thể nối MySQL thực tế, bảng thông số kỹ thuật, giới hạn tồn kho.
-- **Giỏ Hàng & Thanh Toán (`/cart`, `/checkout`):** Sổ địa chỉ (`user_addresses`), COD / VietQR 24/7 / Thẻ tín dụng, tạo mã đơn (`ORD-YYYYMMDD-XXX`), trừ tồn kho và ghi `inventory_logs`.
+- **Giỏ Hàng & Thanh Toán (`/cart`, `/checkout`):** Sổ địa chỉ (`user_addresses`), COD / VietQR 24/7 / VNPAY-QR / Thẻ tín dụng, tạo mã đơn (`ORD-YYYYMMDD-XXX`), trừ tồn kho và ghi `inventory_logs`.
 - **Theo Dõi & Hủy Đơn (`/customer/orders`):** Đồng bộ trạng thái xử lý mới nhất từ Seller; tự hoàn tồn kho khi hủy đơn `pending`.
 - **Trợ Lý Ảo LHKTech AI:** Tích hợp Google Gemini (`Backend/api/common/ai_chat.php`) tư vấn cấu hình, gợi ý sản phẩm đang bán hợp lệ từ MySQL và chính sách giao hàng.
 
@@ -135,19 +134,18 @@ E-COMMERCE/
 
 1. **Khởi động XAMPP:** Mở XAMPP Control Panel, bấm **Start** cả **Apache** và **MySQL**.
 2. **Cơ sở dữ liệu:**
-   - Mở phpMyAdmin (`http://localhost/phpmyadmin`), tạo/chọn database `techecommercedb` và import dữ liệu gốc.
-   - Nếu DB chưa có cột/bảng của Seller Center, import `Backend/migrations/20261108_seller_center.sql` **một lần duy nhất**.
+   - Mở phpMyAdmin (`http://localhost/phpmyadmin`), tạo/chọn database `techecommercedb` và import file CSDL đầy đủ của dự án.
 3. **Tạo tài khoản Admin (nếu DB chưa có):**
    ```powershell
    C:\xampp\php\php.exe Backend\scripts\create_admin.php admin@example.com "Quan tri vien"
    ```
-   *(Nhập mật khẩu tối thiểu 12 ký tự tại dấu nhắc CLI).*
+   *(Nhập mật khẩu tối thiểu 12 ký tự tại dấu nhắc CLI; hoặc dùng `/register` trên web rồi chạy `UPDATE users SET role = 'admin', status = 'active' WHERE email = '...'` trong phpMyAdmin).*
 4. **Cấu hình file `.env` tại thư mục gốc `E-COMMERCE/`:**
    - Sao chép từ `.env.example` nếu chưa có:
      ```powershell
      copy .env.example .env
      ```
-   - Điền cấu hình DB, `GEMINI_API_KEY` (nếu dùng LHKTech AI) và `VITE_API_URL=http://localhost/TechMart/Backend/api`.
+   - Điền cấu hình DB, `VITE_API_URL=http://localhost/TechMart/Backend/api`, cùng `GEMINI_API_KEY` / `GEMINI_MODEL` (nếu dùng trợ lý **LHKTech AI**) và `VITE_TAWK_PROPERTY_ID` / `VITE_TAWK_WIDGET_ID` (nếu dùng live chat Tawk.to).
 
 ### Bước 2: Kết nối Backend với Apache XAMPP
 
@@ -168,12 +166,12 @@ npm run dev
 
 ### Bật live chat Tawk.to (tùy chọn):
 1. Tạo Property trên [Tawk.to](https://www.tawk.to/) và lấy **Property ID** + **Widget ID**.
-2. Tạo `Frontend/.env.local` từ `Frontend/.env.example`:
+2. Điền 2 biến sau vào file `.env` ở thư mục gốc `E-COMMERCE/` (hoặc `Frontend/.env.local`):
    ```env
    VITE_TAWK_PROPERTY_ID=your_property_id
    VITE_TAWK_WIDGET_ID=default
    ```
-3. Khởi động lại `npm run dev`. Không commit `.env.local`.
+3. Khởi động lại `npm run dev`. Không commit `.env` hay `.env.local`.
 
 ---
 
