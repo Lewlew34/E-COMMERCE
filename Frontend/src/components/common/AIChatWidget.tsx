@@ -1,12 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Bot, 
-  Sparkles, 
-  X, 
-  Minus, 
-  Send, 
-  RotateCcw, 
-  Flame, 
+import {
+  Bot,
+  Sparkles,
+  X,
+  Minus,
+  Send,
+  RotateCcw,
+  Flame,
   ShieldCheck,
   Truck,
   Layers,
@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { productService } from '../../services/storageService';
+import { aiChatApi, type AiChatHistoryItem } from '../../api';
+import { useAuth } from '../../contexts/AuthContext';
 import type { Product } from '../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../utils/format';
 
@@ -25,33 +27,277 @@ interface ChatMessage {
   products?: Product[];
 }
 
+const MAX_STORED_MESSAGES = 50;
+
 const INITIAL_MESSAGES: ChatMessage[] = [
   {
     id: 'msg-welcome',
     sender: 'ai',
-    text: 'Xin chào bạn! 👋 Em là **TechMart AI Assistant**. Em có thể giúp bạn chọn thiết bị công nghệ phù hợp ngân sách, tra cứu sản phẩm Flash Sale hoặc giải đáp chính sách bảo hành & giao hàng. Bạn cần em hỗ trợ gì hôm nay?',
+    text: 'Xin chào bạn! 👋 Em là **LHKTech AI Assistant**. Em có thể giúp bạn chọn thiết bị công nghệ phù hợp ngân sách, tra cứu sản phẩm Flash Sale hoặc giải đáp chính sách bảo hành & giao hàng. Bạn cần em hỗ trợ gì hôm nay?',
     timestamp: 'Vừa xong'
   }
 ];
 
 const SUGGESTION_CHIPS = [
   '🔥 Sản phẩm Flash Sale hôm nay',
-  '💻 Laptop gaming đồ họa cấu hình cao',
+  '💻 Laptop gaming dưới 40 triệu',
   '🍎 MacBook chính hãng Apple',
   '📱 Flagship iPhone & Smartphone',
   '🛡️ Chính sách bảo hành & đổi trả',
   '🚚 Phí giao hàng & thời gian nhận'
 ];
 
+function getChatStorageKey(email?: string, id?: string | number): string | null {
+  const identifier = (email || (id != null ? String(id) : '')).trim().toLowerCase();
+  return identifier ? `techmart_ai_chat_${identifier}` : null;
+}
+
+function loadUserMessages(storageKey: string | null): ChatMessage[] {
+  if (!storageKey) return INITIAL_MESSAGES;
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return INITIAL_MESSAGES;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_MESSAGES;
+
+    const valid = parsed
+      .filter(
+        (item): item is ChatMessage =>
+          item &&
+          typeof item === 'object' &&
+          typeof item.id === 'string' &&
+          (item.sender === 'ai' || item.sender === 'user') &&
+          typeof item.text === 'string' &&
+          typeof item.timestamp === 'string'
+      )
+      .map(item => (item.id === 'msg-welcome' ? { ...item, text: INITIAL_MESSAGES[0].text } : item));
+    return valid.length > 0 ? valid.slice(-MAX_STORED_MESSAGES) : INITIAL_MESSAGES;
+  } catch {
+    return INITIAL_MESSAGES;
+  }
+}
+
+function saveUserMessages(storageKey: string | null, messages: ChatMessage[]): void {
+  if (!storageKey) return;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
+  } catch (error) {
+    console.warn('Không thể lưu lịch sử chat AI:', error);
+  }
+}
+
+function createChatMessage(
+  sender: 'ai' | 'user',
+  text: string,
+  products?: Product[]
+): ChatMessage {
+  return {
+    id: `${sender}-${Date.now()}`,
+    sender,
+    text,
+    timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+    products: products && products.length > 0 ? products : undefined
+  };
+}
+
+function extractMaxBudgetVnd(lowerText: string): number | null {
+  const match = lowerText.match(/(?:dưới|tầm|khoảng|tối đa|<=?)\s*(\d+(?:[.,]\d+)?)\s*(tr|triệu|trieu|m|k|nghìn|nghin)?/i);
+  if (!match) return null;
+  const num = Number(match[1].replace(',', '.'));
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const unit = (match[2] || '').toLowerCase();
+  if (unit === 'k' || unit === 'nghìn' || unit === 'nghin') return num * 1_000;
+  if (unit === 'tr' || unit === 'triệu' || unit === 'trieu' || unit === 'm' || num < 500) {
+    return num * 1_000_000;
+  }
+  return num;
+}
+
+function getProductPrice(product: Product): number {
+  return product.flashSalePrice || product.variants[0]?.price || 0;
+}
+
+function generateLocalFallbackReply(
+  text: string,
+  allProducts: Product[]
+): { reply: string; products: Product[] } {
+  const lower = text.toLowerCase();
+  const maxBudget = extractMaxBudgetVnd(lower);
+
+  const filterByBudget = (items: Product[]) =>
+    maxBudget ? items.filter(p => {
+      const price = getProductPrice(p);
+      return price > 0 && price <= maxBudget;
+    }) : items;
+
+  // 1. Chính sách bảo hành & đổi trả
+  if (lower.includes('bảo hành') || lower.includes('đổi trả') || lower.includes('lỗi') || lower.includes('chính sách')) {
+    return {
+      reply: 'Dạ, chính sách cam kết chất lượng tại **LHKTech** luôn đảm bảo an tâm tuyệt đối:\n\n• 🛡️ **Bảo hành 24 tháng:** Toàn bộ thiết bị chính hãng có VAT và thẻ bảo hành.\n• 🔄 **1 Đổi 1 trong 30 ngày:** Đổi mới ngay lập tức nếu xuất hiện lỗi từ nhà sản xuất.\n• 👨‍💻 **Kỹ thuật viên 24/7:** Hỗ trợ tư vấn cấu hình, cài đặt phần mềm và tối ưu hiệu năng miễn phí.',
+      products: []
+    };
+  }
+
+  // 2. Chính sách giao hàng
+  if (lower.includes('giao hàng') || lower.includes('ship') || lower.includes('vận chuyển') || lower.includes('thời gian nhận') || lower.includes('phí')) {
+    return {
+      reply: 'Dạ, dịch vụ giao vận tại **LHKTech** cực kỳ nhanh chóng:\n\n• 🚀 **Giao hỏa tốc 2H:** Áp dụng nội thành cho quý khách cần nhận máy gấp.\n• 📦 **Miễn phí ship toàn quốc:** Cho đơn hàng có giá trị từ 500.000₫ trở lên.\n• 🛡️ **Bọc chống sốc chuyên dụng:** Đóng thùng bảo vệ đa lớp an toàn tuyệt đối cho linh kiện điện tử.',
+      products: []
+    };
+  }
+
+  // 3. Flash sale
+  if (lower.includes('flash') || lower.includes('sale') || lower.includes('giảm giá') || lower.includes('khuyến mãi')) {
+    const flashSales = filterByBudget(allProducts.filter(p => p.isFlashSale));
+    const matched = flashSales.length > 0 ? flashSales.slice(0, 4) : filterByBudget(allProducts).slice(0, 3);
+    return {
+      reply: 'Dưới đây là các thiết bị công nghệ đang trong chương trình **Flash Sale Giờ Vàng** tại LHKTech! Số lượng có hạn bạn nhanh tay săn ngay nhé:',
+      products: matched
+    };
+  }
+
+  // 4. Laptop / Gaming / MacBook / Máy tính
+  if (
+    lower.includes('laptop') ||
+    lower.includes('máy tính') ||
+    lower.includes('may tinh') ||
+    lower.includes('ultrabook') ||
+    lower.includes('macbook') ||
+    lower.includes('gaming') ||
+    lower.includes('đồ họa') ||
+    lower.includes('asus') ||
+    lower.includes('rog') ||
+    lower.includes('m3')
+  ) {
+    const laptops = allProducts.filter(p =>
+      p.category?.slug === 'laptop' ||
+      p.name.toLowerCase().includes('laptop') ||
+      p.name.toLowerCase().includes('macbook') ||
+      p.name.toLowerCase().includes('rog')
+    );
+    const budgetMatched = filterByBudget(laptops).slice(0, 4);
+    if (maxBudget && budgetMatched.length === 0) {
+      return {
+        reply: `Hiện chưa có mẫu laptop nào dưới **${formatCurrencyVN(maxBudget)}** trong danh sách. Bạn tham khảo các mẫu laptop hiện có tại LHKTech nhé:`,
+        products: laptops.slice(0, 3)
+      };
+    }
+    return {
+      reply: maxBudget
+        ? `Dưới đây là các mẫu **Laptop / MacBook** phù hợp ngân sách dưới **${formatCurrencyVN(maxBudget)}** tại LHKTech:`
+        : 'LHKTech hiện có các dòng Laptop Gaming hiệu năng khủng và MacBook chính hãng Apple. Em gợi ý bạn các mẫu nổi bật nhất:',
+      products: budgetMatched
+    };
+  }
+
+  // 5. Điện thoại / Tablet
+  if (lower.includes('iphone') || lower.includes('phone') || lower.includes('điện thoại') || lower.includes('đt') || lower.includes('smartphone') || lower.includes('tablet') || lower.includes('samsung')) {
+    const phones = filterByBudget(allProducts.filter(p =>
+      p.category?.slug === 'phone' ||
+      p.name.toLowerCase().includes('iphone') ||
+      p.name.toLowerCase().includes('samsung')
+    )).slice(0, 4);
+    return {
+      reply: 'Các dòng điện thoại Flagship chính hãng phân phối ủy quyền tại Việt Nam, cam kết nguyên seal 100% VAT đầy đủ:',
+      products: phones
+    };
+  }
+
+  // 6. Linh kiện PC / VGA
+  if (lower.includes('pc') || lower.includes('vga') || lower.includes('rtx') || lower.includes('card') || lower.includes('linh kiện') || lower.includes('cpu')) {
+    const parts = filterByBudget(allProducts.filter(p =>
+      p.category?.slug === 'pc-component' ||
+      p.name.toLowerCase().includes('rtx') ||
+      p.name.toLowerCase().includes('vga')
+    )).slice(0, 4);
+    return {
+      reply: 'Linh kiện build PC cao cấp, card đồ họa NVIDIA RTX hiệu năng dẫn đầu cho game thủ và đồ họa chuyên nghiệp:',
+      products: parts
+    };
+  }
+
+  // 7. Màn hình
+  if (lower.includes('màn hình') || lower.includes('monitor')) {
+    const monitors = filterByBudget(allProducts.filter(p =>
+      p.category?.slug === 'monitor' ||
+      p.name.toLowerCase().includes('màn hình')
+    )).slice(0, 4);
+    return {
+      reply: 'Màn hình công nghệ chuẩn màu đồ họa và tần số quét cao dành cho bạn:',
+      products: monitors
+    };
+  }
+
+  // 8. Chào hỏi
+  if (lower.includes('chào') || lower.includes('hi') || lower.includes('hello') || lower.includes('ơi')) {
+    return {
+      reply: 'Xin chào bạn! Rất vui được đồng hành cùng bạn. Em có thể tìm kiếm cấu hình máy tính, check giá Flash Sale hoặc giải đáp các thắc mắc về chính sách giao hàng và bảo hành giúp bạn ngay lúc này nhé!',
+      products: []
+    };
+  }
+
+  // 9. Lọc theo ngân sách hoặc từ khóa tự do
+  if (maxBudget) {
+    const underBudget = filterByBudget(allProducts).slice(0, 4);
+    if (underBudget.length > 0) {
+      return {
+        reply: `Em tìm thấy ${underBudget.length} sản phẩm phù hợp mức giá dưới **${formatCurrencyVN(maxBudget)}**:`,
+        products: underBudget
+      };
+    }
+  }
+
+  const keywordMatches = allProducts.filter(p =>
+    p.name.toLowerCase().includes(lower) ||
+    p.description.toLowerCase().includes(lower) ||
+    (p.brand?.name.toLowerCase().includes(lower) ?? false)
+  );
+
+  if (keywordMatches.length > 0) {
+    return {
+      reply: `Em tìm thấy ${keywordMatches.length} sản phẩm phù hợp với từ khóa "${text}" của bạn:`,
+      products: keywordMatches.slice(0, 3)
+    };
+  }
+
+  return {
+    reply: 'Cảm ơn bạn đã nhắn tin cho LHKTech AI! Em có thể tư vấn chi tiết cấu hình máy, gợi ý deal Flash Sale giá sốc hoặc tra cứu sản phẩm chính hãng. Bạn có thể bấm các gợi ý nhanh bên dưới hoặc miêu tả nhu cầu cụ thể hơn (VD: "laptop dưới 40tr", "iPhone", "màn hình 240Hz") nhé!',
+    products: []
+  };
+}
+
 export const AIChatWidget: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
+  const chatStorageKey = getChatStorageKey(user?.email, user?.id);
+
+  // Chỉ hiển thị boxchat sau khi đăng nhập; key theo từng user để tự động tách lịch sử chat
+  if (!isAuthenticated || !user || !chatStorageKey) {
+    return null;
+  }
+
+  return <AIChatWidgetInner key={chatStorageKey} storageKey={chatStorageKey} />;
+};
+
+const AIChatWidgetInner: React.FC<{ storageKey: string }> = ({ storageKey }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadUserMessages(storageKey));
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
+  const [aiModeLabel, setAiModeLabel] = useState<'Gemini AI' | 'Tư vấn tức thì'>('Gemini AI');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  // Lưu lịch sử chat riêng cho người dùng hiện tại
+  useEffect(() => {
+    saveUserMessages(storageKey, messages);
+  }, [storageKey, messages]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -69,119 +315,50 @@ export const AIChatWidget: React.FC = () => {
     }
   }, [isOpen, messages, isTyping]);
 
-  const allProducts = productService.getAll();
-
-  const handleSendMessage = (textToSend?: string) => {
+  const handleSendMessage = async (textToSend?: string) => {
     const text = (textToSend || inputValue).trim();
-    if (!text) return;
+    if (!text || isTyping) return;
 
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      sender: 'user',
-      text,
-      timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    };
+    const historyPayload: AiChatHistoryItem[] = messages.slice(-10).map(m => ({
+      sender: m.sender,
+      text: m.text
+    }));
+
+    const userMessage = createChatMessage('user', text);
 
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
     setIsTyping(true);
 
-    // AI smart local response generation
-    setTimeout(() => {
-      const lower = text.toLowerCase();
-      let responseText = '';
-      let matchedProducts: Product[] = [];
+    let replyText = '';
+    let matchedProducts: Product[] = [];
 
-      // 1. Flash sale queries
-      if (lower.includes('flash') || lower.includes('sale') || lower.includes('giảm giá') || lower.includes('khuyến mãi') || lower.includes('hôm nay')) {
-        const flashSales = allProducts.filter(p => p.isFlashSale);
-        matchedProducts = flashSales.length > 0 ? flashSales : allProducts.slice(0, 3);
-        responseText = `Dưới đây là các thiết bị công nghệ đang trong chương trình **Flash Sale Giờ Vàng** với mức giá giảm sốc lên tới **30%** tại TechMart! Số lượng có hạn bạn nhanh tay săn ngay nhé:`;
-      }
-      // 2. Laptop / Gaming / MacBook
-      else if (lower.includes('laptop') || lower.includes('macbook') || lower.includes('gaming') || lower.includes('đồ họa') || lower.includes('asus') || lower.includes('rog') || lower.includes('m3')) {
-        matchedProducts = allProducts.filter(p => 
-          p.category?.slug === 'laptop' || 
-          p.name.toLowerCase().includes('laptop') || 
-          p.name.toLowerCase().includes('macbook') ||
-          p.name.toLowerCase().includes('rog')
-        );
-        responseText = `TechMart hiện có các dòng Laptop Gaming hiệu năng khủng (Intel Core i9 + RTX 40-series) và MacBook Pro chính hãng Apple. Em gợi ý bạn các mẫu xuất sắc nhất:`;
-      }
-      // 3. Phone / Tablet / iPhone / Samsung
-      else if (lower.includes('iphone') || lower.includes('phone') || lower.includes('điện thoại') || lower.includes('tablet') || lower.includes('samsung')) {
-        matchedProducts = allProducts.filter(p => 
-          p.category?.slug === 'phone' || 
-          p.name.toLowerCase().includes('iphone') ||
-          p.name.toLowerCase().includes('samsung')
-        );
-        responseText = `Các dòng điện thoại Flagship chính hãng phân phối ủy quyền tại Việt Nam, cam kết nguyên seal 100% VAT đầy đủ:`;
-      }
-      // 4. PC Components / VGA / RTX
-      else if (lower.includes('pc') || lower.includes('vga') || lower.includes('rtx') || lower.includes('card') || lower.includes('linh kiện') || lower.includes('cpu')) {
-        matchedProducts = allProducts.filter(p => 
-          p.category?.slug === 'pc-component' || 
-          p.name.toLowerCase().includes('rtx') ||
-          p.name.toLowerCase().includes('vga')
-        );
-        responseText = `Linh kiện build PC cao cấp, card đồ họa NVIDIA RTX 40-series hiệu năng dẫn đầu cho game thủ và đồ họa chuyên nghiệp:`;
-      }
-      // 5. Monitor
-      else if (lower.includes('màn hình') || lower.includes('monitor')) {
-        matchedProducts = allProducts.filter(p => 
-          p.category?.slug === 'monitor' || 
-          p.name.toLowerCase().includes('màn hình')
-        );
-        responseText = `Màn hình công nghệ chuẩn màu đồ họa và tần số quét cao (240Hz+) dành cho bạn:`;
-      }
-      // 6. Warranty & Exchange policies
-      else if (lower.includes('bảo hành') || lower.includes('đổi trả') || lower.includes('lỗi') || lower.includes('chính sách')) {
-        responseText = `Dạ, chính sách cam kết chất lượng tại **TechMart** luôn đảm bảo an tâm tuyệt đối:\n\n• 🛡️ **Bảo hành 24 tháng:** Toàn bộ thiết bị chính hãng có VAT và thẻ bảo hành.\n• 🔄 **1 Đổi 1 trong 30 ngày:** Đổi mới ngay lập tức nếu xuất hiện lỗi từ nhà sản xuất.\n• 👨‍💻 **Kỹ thuật viên 24/7:** Hỗ trợ tư vấn cấu hình, cài đặt phần mềm và tối ưu hiệu năng miễn phí.`;
-      }
-      // 7. Shipping policies
-      else if (lower.includes('giao hàng') || lower.includes('ship') || lower.includes('vận chuyển') || lower.includes('thời gian nhận') || lower.includes('phí')) {
-        responseText = `Dạ, dịch vụ giao vận tại **TechMart** cực kỳ nhanh chóng:\n\n• 🚀 **Giao hỏa tốc 2H:** Áp dụng nội thành cho quý khách cần nhận máy gấp.\n• 📦 **Miễn phí ship toàn quốc:** Cho đơn hàng có giá trị từ 500.000₫ trở lên.\n• 🛡️ **Bọc chống sốc chuyên dụng:** Đóng thùng bảo vệ đa lớp an toàn tuyệt đối cho linh kiện điện tử.`;
-      }
-      // 8. Greetings
-      else if (lower.includes('chào') || lower.includes('hi') || lower.includes('hello') || lower.includes('ơi')) {
-        responseText = `Xin chào bạn! Rất vui được đồng hành cùng bạn. Em có thể tìm kiếm cấu hình máy tính, check giá Flash Sale hoặc giải đáp các thắc mắc về đơn hàng giúp bạn ngay lúc này nhé!`;
-      }
-      // 9. Generic matching by product keyword
-      else {
-        const keywordMatches = allProducts.filter(p => 
-          p.name.toLowerCase().includes(lower) || 
-          p.description.toLowerCase().includes(lower) ||
-          p.brand?.name.toLowerCase().includes(lower)
-        );
+    try {
+      const aiRes = await aiChatApi.sendMessage(text, historyPayload);
+      replyText = aiRes.reply;
+      matchedProducts = aiRes.products;
+      setAiModeLabel('Gemini AI');
+    } catch (error) {
+      console.warn('Không thể kết nối Gemini Proxy, chuyển sang bộ lọc cục bộ:', error);
+      const localResult = generateLocalFallbackReply(text, productService.getAll());
+      replyText = localResult.reply;
+      matchedProducts = localResult.products;
+      setAiModeLabel('Tư vấn tức thì');
+    }
 
-        if (keywordMatches.length > 0) {
-          matchedProducts = keywordMatches.slice(0, 3);
-          responseText = `Em tìm thấy ${keywordMatches.length} sản phẩm phù hợp với từ khóa "${text}" của bạn:`;
-        } else {
-          matchedProducts = allProducts.slice(0, 2);
-          responseText = `Cảm ơn bạn đã nhắn tin cho TechMart AI! Em có thể tư vấn chi tiết cấu hình máy, gợi ý deal Flash Sale giá sốc hoặc tra cứu sản phẩm chính hãng. Bạn có thể bấm các gợi ý nhanh bên dưới hoặc miêu tả nhu cầu cụ thể nhé!`;
-        }
-      }
+    const aiMessage = createChatMessage('ai', replyText, matchedProducts);
 
-      const aiMessage: ChatMessage = {
-        id: `ai-${Date.now()}`,
-        sender: 'ai',
-        text: responseText,
-        timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
-        products: matchedProducts.length > 0 ? matchedProducts : undefined
-      };
+    setMessages(prev => [...prev, aiMessage]);
+    setIsTyping(false);
 
-      setMessages(prev => [...prev, aiMessage]);
-      setIsTyping(false);
-
-      if (!isOpen) {
-        setHasUnread(true);
-      }
-    }, 600);
+    if (!isOpenRef.current) {
+      setHasUnread(true);
+    }
   };
 
   const handleReset = () => {
     setMessages(INITIAL_MESSAGES);
+    setHasUnread(false);
   };
 
   return (
@@ -190,17 +367,17 @@ export const AIChatWidget: React.FC = () => {
       {!isOpen && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3">
           {/* Subtle invitation chip tooltip */}
-          <div 
+          <div
             onClick={handleOpen}
             className="hidden sm:flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-slate-900/90 text-white text-xs font-semibold shadow-xl border border-slate-700/80 backdrop-blur-md cursor-pointer hover:bg-slate-900 transition-all animate-bounce"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Hỏi TechMart AI ✨</span>
+            <span>Hỏi LHKTech AI ✨</span>
           </div>
 
           <button
             onClick={handleOpen}
-            aria-label="Mở khung chat TechMart AI"
+            aria-label="Mở khung chat LHKTech AI"
             className="relative w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 text-white flex items-center justify-center shadow-2xl shadow-blue-600/50 hover:scale-105 active:scale-95 transition-all cursor-pointer group border-2 border-white/20"
           >
             <Bot className="w-7 h-7 text-white group-hover:rotate-12 transition-transform" />
@@ -233,12 +410,14 @@ export const AIChatWidget: React.FC = () => {
               </div>
               <div>
                 <div className="font-bold text-xs tracking-tight text-white flex items-center gap-1.5">
-                  TechMart AI Assistant
-                  <span className="px-1.5 py-0.2 rounded-md bg-blue-500/20 text-blue-400 text-[9px] font-mono border border-blue-500/30">PRO</span>
+                  LHKTech AI Assistant
+                  <span className="px-1.5 py-0.2 rounded-md bg-blue-500/20 text-blue-400 text-[9px] font-mono border border-blue-500/30">
+                    {aiModeLabel === 'Gemini AI' ? 'GEMINI' : 'PRO'}
+                  </span>
                 </div>
                 <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  Trực tuyến 24/7 • Tư vấn tức thì
+                  Trực tuyến 24/7 • {aiModeLabel}
                 </div>
               </div>
             </div>
@@ -288,7 +467,7 @@ export const AIChatWidget: React.FC = () => {
                   </div>
                 )}
 
-                <div className={`max-w-[85%] space-y-2`}>
+                <div className="max-w-[85%] space-y-2">
                   <div
                     className={`p-3 rounded-2xl text-xs leading-relaxed ${
                       msg.sender === 'user'
@@ -297,7 +476,7 @@ export const AIChatWidget: React.FC = () => {
                     }`}
                   >
                     <div className="whitespace-pre-line">
-                      {msg.text.split('**').map((part, i) => 
+                      {msg.text.split('**').map((part, i) =>
                         i % 2 === 1 ? <strong key={i} className="font-bold">{part}</strong> : part
                       )}
                     </div>
@@ -372,7 +551,7 @@ export const AIChatWidget: React.FC = () => {
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-bounce"></span>
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]"></span>
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-bounce [animation-delay:0.4s]"></span>
-                  <span className="text-[11px] text-slate-400 ml-1">TechMart AI đang trả lời...</span>
+                  <span className="text-[11px] text-slate-400 ml-1">LHKTech AI đang trả lời...</span>
                 </div>
               </div>
             )}
@@ -386,7 +565,8 @@ export const AIChatWidget: React.FC = () => {
               <button
                 key={chip}
                 onClick={() => handleSendMessage(chip)}
-                className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-slate-200/80 text-slate-600 transition-all shrink-0 cursor-pointer font-medium"
+                disabled={isTyping}
+                className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 border border-slate-200/80 text-slate-600 transition-all shrink-0 cursor-pointer font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {chip}
               </button>
