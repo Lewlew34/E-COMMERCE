@@ -78,6 +78,21 @@ export const SellerProductsPage: React.FC = () => {
   const [variantAttr, setVariantAttr] = useState('Tiêu chuẩn');
   const [imageUrl, setImageUrl] = useState('https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800');
 
+  const resetProductForm = (currentBrands = brands, currentCategories = categories) => {
+    setEditingProductId(null);
+    setEditingVariantId(null);
+    setName('');
+    setDescription('');
+    setSku('');
+    setPrice(10000000);
+    setComparePrice(12000000);
+    setStock(10);
+    setVariantAttr('Tiêu chuẩn');
+    setImageUrl('https://images.unsplash.com/photo-1593642632823-8f785ba67e45?w=800');
+    if (currentBrands.length > 0) setBrandId(currentBrands[0].id);
+    if (currentCategories.length > 0) setCategoryId(currentCategories[0].id);
+  };
+
   const refreshProducts = async () => {
     const data = await sellerApiService.getProducts();
     setProducts(data.filter(product => product.status !== 'archived'));
@@ -89,6 +104,12 @@ export const SellerProductsPage: React.FC = () => {
         setProducts(data.filter(product => product.status !== 'archived'));
         setBrands(lookups.brands);
         setCategories(lookups.categories);
+        if (lookups.brands.length > 0 && !lookups.brands.some(b => b.id === brandId)) {
+          setBrandId(lookups.brands[0].id);
+        }
+        if (lookups.categories.length > 0 && !lookups.categories.some(c => c.id === categoryId)) {
+          setCategoryId(lookups.categories[0].id);
+        }
       })
       .catch(error => showToast(error instanceof Error ? error.message : 'Không tải được dữ liệu Seller.', 'error'))
       .finally(() => setLoading(false));
@@ -114,6 +135,18 @@ export const SellerProductsPage: React.FC = () => {
       showToast('Vui lòng nhập tên sản phẩm và mã SKU!', 'error');
       return;
     }
+    if (price <= 0) {
+      showToast('Giá bán phải lớn hơn 0!', 'error');
+      return;
+    }
+    if (stock < 0) {
+      showToast('Số lượng tồn kho không được âm!', 'error');
+      return;
+    }
+    if (comparePrice && Number(comparePrice) > 0 && Number(comparePrice) < Number(price)) {
+      showToast('Giá gốc (khuyến mãi) phải lớn hơn hoặc bằng giá bán!', 'error');
+      return;
+    }
 
     try {
       const payload = {
@@ -124,7 +157,7 @@ export const SellerProductsPage: React.FC = () => {
         description,
         sku: sku.trim(),
         price: Number(price),
-        comparePrice: Number(comparePrice) || null,
+        comparePrice: Number(comparePrice) > 0 ? Number(comparePrice) : null,
         stock: Number(stock),
         variantAttr,
         image: imageUrl
@@ -138,10 +171,7 @@ export const SellerProductsPage: React.FC = () => {
       }
       await refreshProducts();
       setShowAddModal(false);
-      setEditingProductId(null);
-      setEditingVariantId(null);
-      setName('');
-      setSku('');
+      resetProductForm();
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Không thể lưu sản phẩm.', 'error');
     }
@@ -157,7 +187,7 @@ export const SellerProductsPage: React.FC = () => {
     setDescription(product.description || '');
     setSku(variant?.sku || '');
     setPrice(variant?.price || 0);
-    setComparePrice(variant?.compareAtPrice || 0);
+    setComparePrice(variant?.compareAtPrice ?? 0);
     setStock(variant?.stockQuantity || 0);
     setVariantAttr(Object.values(variant?.attributes || {}).join(', ') || 'Tiêu chuẩn');
     setImageUrl(variant?.image || '');
@@ -345,7 +375,10 @@ export const SellerProductsPage: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => {
+              resetProductForm();
+              setShowAddModal(true);
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-xs transition-colors cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" /> Thêm sản phẩm mới
@@ -833,10 +866,22 @@ export const SellerProductsPage: React.FC = () => {
       {showAddModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 space-y-4 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <Cpu className="w-5 h-5 text-emerald-600" />
-              {editingProductId ? 'Chỉnh Sửa Sản Phẩm' : 'Thêm Thiết Bị Công Nghệ Mới'}
-            </h3>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-emerald-600" />
+                {editingProductId ? 'Chỉnh Sửa Sản Phẩm' : 'Thêm Thiết Bị Công Nghệ Mới'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddModal(false);
+                  resetProductForm();
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
             <form onSubmit={handleCreateProduct} className="space-y-3 text-xs">
               <div>
@@ -989,7 +1034,10 @@ export const SellerProductsPage: React.FC = () => {
                 )}
                 <button
                   type="button"
-                  onClick={() => { setShowAddModal(false); setEditingProductId(null); setEditingVariantId(null); }}
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetProductForm();
+                  }}
                   className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-100 cursor-pointer"
                 >
                   Hủy

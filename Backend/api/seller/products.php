@@ -98,18 +98,30 @@ function parse_product_input(array $body): array
     $price = filter_var($body['price'] ?? null, FILTER_VALIDATE_FLOAT);
     $stock = filter_var($body['stock'] ?? null, FILTER_VALIDATE_INT);
     $comparePriceRaw = $body['comparePrice'] ?? null;
-    $comparePrice = ($comparePriceRaw === '' || $comparePriceRaw === null)
+    $comparePrice = ($comparePriceRaw === '' || $comparePriceRaw === null || (float)$comparePriceRaw <= 0)
         ? null
         : filter_var($comparePriceRaw, FILTER_VALIDATE_FLOAT);
 
-    if ($name === '' || $sku === '' || $price === false || $price <= 0 || $stock === false || $stock < 0
-        || ($comparePriceRaw !== '' && $comparePriceRaw !== null && ($comparePrice === false || $comparePrice <= 0))
-        || ($comparePrice !== null && $comparePrice < $price)
-        || ($image !== '' && !filter_var($image, FILTER_VALIDATE_URL))) {
-        json_error('Thông tin sản phẩm, SKU, giá, tồn kho hoặc ảnh URL không hợp lệ.', 422);
+    if ($name === '' || $sku === '') {
+        json_error('Vui lòng nhập tên sản phẩm và mã SKU.', 422);
+    }
+    if ($price === false || $price <= 0) {
+        json_error('Giá bán phải lớn hơn 0.', 422);
+    }
+    if ($stock === false || $stock < 0) {
+        json_error('Số lượng tồn kho không được âm.', 422);
+    }
+    if ($comparePrice !== null && $comparePrice < $price) {
+        json_error('Giá gốc phải lớn hơn hoặc bằng giá bán.', 422);
+    }
+    if ($image !== '' && !filter_var($image, FILTER_VALIDATE_URL) && !preg_match('#^(/|\./|\.\./|https?://|data:image/)#i', $image)) {
+        json_error('Đường dẫn ảnh sản phẩm không hợp lệ.', 422);
     }
 
+    $variantId = !empty($body['variantId']) ? require_positive_int($body['variantId'], 'ID biến thể') : null;
+
     return [
+        'variantId' => $variantId,
         'name' => $name,
         'brand_id' => $brandId,
         'category_id' => $categoryId,
@@ -141,48 +153,59 @@ if ($method === 'POST') {
     $body = parse_product_input(get_json_body());
     $pdo->beginTransaction();
 
-    $stmt = $pdo->prepare(
-        'INSERT INTO products (name, slug, brand_id, category_id, seller_id, description, specifications, status)
-         VALUES (:name, :slug, :brand_id, :category_id, :seller_id, :description, :specifications, "pending_review")'
-    );
-    $stmt->execute([
-        'name' => $body['name'],
-        'slug' => generate_product_slug($body['name']),
-        'brand_id' => $body['brand_id'],
-        'category_id' => $body['category_id'],
-        'seller_id' => $sellerId,
-        'description' => $body['description'],
-        'specifications' => $body['specifications'],
-    ]);
-    $productId = (int) $pdo->lastInsertId();
+    try {
+        $stmt = $pdo->prepare(
+            'INSERT INTO products (name, slug, brand_id, category_id, seller_id, description, specifications, status)
+             VALUES (:name, :slug, :brand_id, :category_id, :seller_id, :description, :specifications, "pending_review")'
+        );
+        $stmt->execute([
+            'name' => $body['name'],
+            'slug' => generate_product_slug($body['name']),
+            'brand_id' => $body['brand_id'],
+            'category_id' => $body['category_id'],
+            'seller_id' => $sellerId,
+            'description' => $body['description'],
+            'specifications' => $body['specifications'],
+        ]);
+        $productId = (int) $pdo->lastInsertId();
 
-    $variant = $pdo->prepare(
-        'INSERT INTO product_variants (product_id, sku, price, compare_at_price, stock_quantity, attributes, image)
-         VALUES (:product_id, :sku, :price, :compare_price, :stock, :attributes, :image)'
-    );
-    $variant->execute([
-        'product_id' => $productId,
-        'sku' => $body['sku'],
-        'price' => $body['price'],
-        'compare_price' => $body['compare_price'],
-        'stock' => $body['stock'],
-        'attributes' => $body['attributes'],
-        'image' => $body['image'],
-    ]);
-    $variantId = (int) $pdo->lastInsertId();
+        $variant = $pdo->prepare(
+            'INSERT INTO product_variants (product_id, sku, price, compare_at_price, stock_quantity, attributes, image)
+             VALUES (:product_id, :sku, :price, :compare_price, :stock, :attributes, :image)'
+        );
+        $variant->execute([
+            'product_id' => $productId,
+            'sku' => $body['sku'],
+            'price' => $body['price'],
+            'compare_price' => $body['compare_price'],
+            'stock' => $body['stock'],
+            'attributes' => $body['attributes'],
+            'image' => $body['image'],
+        ]);
+        $variantId = (int) $pdo->lastInsertId();
 
-    $pdo->prepare(
-        'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
-         VALUES (:variant_id, "import", :quantity, 0, :quantity, :reference_id, :created_by)'
-    )->execute([
-        'variant_id' => $variantId,
-        'quantity' => $body['stock'],
-        'reference_id' => 'PRODUCT-' . $productId,
-        'created_by' => $sellerId,
-    ]);
+        $pdo->prepare(
+            'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
+             VALUES (:variant_id, "import", :quantity_changed, 0, :new_stock, :reference_id, :created_by)'
+        )->execute([
+            'variant_id' => $variantId,
+            'quantity_changed' => $body['stock'],
+            'new_stock' => $body['stock'],
+            'reference_id' => 'PRODUCT-' . $productId,
+            'created_by' => $sellerId,
+        ]);
 
-    $pdo->commit();
-    json_success(fetch_seller_products($pdo, $sellerId)[0] ?? null, 'Thêm sản phẩm thành công.', 201);
+        $pdo->commit();
+        json_success(fetch_seller_products($pdo, $sellerId)[0] ?? null, 'Thêm sản phẩm thành công.', 201);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if ($e instanceof PDOException && (string)$e->getCode() === '23000' && str_contains(strtolower($e->getMessage()), 'sku')) {
+            json_error('Mã SKU "' . $body['sku'] . '" đã tồn tại trong hệ thống. Vui lòng nhập mã SKU khác.', 409);
+        }
+        json_error('Lỗi khi thêm sản phẩm: ' . $e->getMessage(), 500);
+    }
 }
 
 // 3. PUT: Cập nhật thông tin sản phẩm và biến thể
@@ -191,73 +214,83 @@ if ($method === 'PUT') {
     $body = parse_product_input(get_json_body());
     $pdo->beginTransaction();
 
-    $owner = $pdo->prepare('SELECT id FROM products WHERE id = :id AND seller_id = :seller_id FOR UPDATE');
-    $owner->execute(['id' => $productId, 'seller_id' => $sellerId]);
-    if (!$owner->fetch()) {
-        $pdo->rollBack();
-        json_error('Không tìm thấy sản phẩm thuộc gian hàng của bạn.', 404);
-    }
+    try {
+        $owner = $pdo->prepare('SELECT id FROM products WHERE id = :id AND seller_id = :seller_id FOR UPDATE');
+        $owner->execute(['id' => $productId, 'seller_id' => $sellerId]);
+        if (!$owner->fetch()) {
+            $pdo->rollBack();
+            json_error('Không tìm thấy sản phẩm thuộc gian hàng của bạn.', 404);
+        }
 
-    $pdo->prepare(
-        'UPDATE products SET name = :name, brand_id = :brand_id, category_id = :category_id,
-         description = :description, specifications = :specifications, status = "pending_review"
-         WHERE id = :id AND seller_id = :seller_id'
-    )->execute([
-        'name' => $body['name'],
-        'brand_id' => $body['brand_id'],
-        'category_id' => $body['category_id'],
-        'description' => $body['description'],
-        'specifications' => $body['specifications'],
-        'id' => $productId,
-        'seller_id' => $sellerId,
-    ]);
-
-    $variantId = require_positive_int($body['variantId'] ?? $_GET['variantId'] ?? null, 'ID biến thể');
-    $variantStmt = $pdo->prepare(
-        'SELECT id, stock_quantity FROM product_variants WHERE product_id = :product_id AND id = :variant_id FOR UPDATE'
-    );
-    $variantStmt->execute(['product_id' => $productId, 'variant_id' => $variantId]);
-    $variant = $variantStmt->fetch();
-
-    if (!$variant) {
-        $pdo->rollBack();
-        json_error('Sản phẩm chưa có biến thể để cập nhật.', 409);
-    }
-
-    $pdo->prepare(
-        'UPDATE product_variants SET sku = :sku, price = :price, compare_at_price = :compare_price,
-         stock_quantity = :stock, attributes = :attributes, image = :image WHERE id = :id'
-    )->execute([
-        'sku' => $body['sku'],
-        'price' => $body['price'],
-        'compare_price' => $body['compare_price'],
-        'stock' => $body['stock'],
-        'attributes' => $body['attributes'],
-        'image' => $body['image'],
-        'id' => (int) $variant['id'],
-    ]);
-
-    if ((int) $variant['stock_quantity'] !== $body['stock']) {
         $pdo->prepare(
-            'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
-             VALUES (:variant_id, "manual_adjust", :quantity, :previous_stock, :new_stock, :reference_id, :created_by)'
+            'UPDATE products SET name = :name, brand_id = :brand_id, category_id = :category_id,
+             description = :description, specifications = :specifications, status = "pending_review"
+             WHERE id = :id AND seller_id = :seller_id'
         )->execute([
-            'variant_id' => (int) $variant['id'],
-            'quantity' => $body['stock'] - (int) $variant['stock_quantity'],
-            'previous_stock' => (int) $variant['stock_quantity'],
-            'new_stock' => $body['stock'],
-            'reference_id' => 'PRODUCT-' . $productId,
-            'created_by' => $sellerId,
+            'name' => $body['name'],
+            'brand_id' => $body['brand_id'],
+            'category_id' => $body['category_id'],
+            'description' => $body['description'],
+            'specifications' => $body['specifications'],
+            'id' => $productId,
+            'seller_id' => $sellerId,
         ]);
+
+        $variantId = $body['variantId'] ?? require_positive_int($_GET['variantId'] ?? null, 'ID biến thể');
+        $variantStmt = $pdo->prepare(
+            'SELECT id, stock_quantity FROM product_variants WHERE product_id = :product_id AND id = :variant_id FOR UPDATE'
+        );
+        $variantStmt->execute(['product_id' => $productId, 'variant_id' => $variantId]);
+        $variant = $variantStmt->fetch();
+
+        if (!$variant) {
+            $pdo->rollBack();
+            json_error('Sản phẩm chưa có biến thể để cập nhật.', 409);
+        }
+
+        $pdo->prepare(
+            'UPDATE product_variants SET sku = :sku, price = :price, compare_at_price = :compare_price,
+             stock_quantity = :stock, attributes = :attributes, image = :image WHERE id = :id'
+        )->execute([
+            'sku' => $body['sku'],
+            'price' => $body['price'],
+            'compare_price' => $body['compare_price'],
+            'stock' => $body['stock'],
+            'attributes' => $body['attributes'],
+            'image' => $body['image'],
+            'id' => (int) $variant['id'],
+        ]);
+
+        if ((int) $variant['stock_quantity'] !== $body['stock']) {
+            $pdo->prepare(
+                'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
+                 VALUES (:variant_id, "manual_adjust", :quantity, :previous_stock, :new_stock, :reference_id, :created_by)'
+            )->execute([
+                'variant_id' => (int) $variant['id'],
+                'quantity' => $body['stock'] - (int) $variant['stock_quantity'],
+                'previous_stock' => (int) $variant['stock_quantity'],
+                'new_stock' => $body['stock'],
+                'reference_id' => 'PRODUCT-' . $productId,
+                'created_by' => $sellerId,
+            ]);
+        }
+
+        $pdo->commit();
+        $updated = array_values(array_filter(
+            fetch_seller_products($pdo, $sellerId),
+            static fn(array $item): bool => $item['id'] === $productId
+        ))[0] ?? null;
+
+        json_success($updated, 'Cập nhật sản phẩm thành công.');
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if ($e instanceof PDOException && (string)$e->getCode() === '23000' && str_contains(strtolower($e->getMessage()), 'sku')) {
+            json_error('Mã SKU "' . $body['sku'] . '" đã tồn tại trong hệ thống. Vui lòng nhập mã SKU khác.', 409);
+        }
+        json_error('Lỗi khi cập nhật sản phẩm: ' . $e->getMessage(), 500);
     }
-
-    $pdo->commit();
-    $updated = array_values(array_filter(
-        fetch_seller_products($pdo, $sellerId),
-        static fn(array $item): bool => $item['id'] === $productId
-    ))[0] ?? null;
-
-    json_success($updated, 'Cập nhật sản phẩm thành công.');
 }
 
 // 4. DELETE: Ẩn sản phẩm (soft delete)

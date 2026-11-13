@@ -35,35 +35,46 @@ if ($sku === '' || $price === false || $price <= 0 || $stock === false || $stock
     json_error('Thông tin biến thể, SKU, giá bán hoặc tồn kho không hợp lệ.', 422);
 }
 
-$pdo->beginTransaction();
-$pdo->prepare(
-    'UPDATE products SET status = "pending_review"
-     WHERE id = :product_id AND seller_id = :seller_id'
-)->execute(['product_id' => $productId, 'seller_id' => $sellerId]);
-$stmt = $pdo->prepare(
-    'INSERT INTO product_variants (product_id, sku, price, compare_at_price, stock_quantity, attributes, image)
-     VALUES (:product_id, :sku, :price, :compare_price, :stock, :attributes, :image)'
-);
-$stmt->execute([
-    'product_id' => $productId,
-    'sku' => $sku,
-    'price' => $price,
-    'compare_price' => $comparePrice,
-    'stock' => $stock,
-    'attributes' => json_encode(['Phiên bản' => $variantAttr], JSON_UNESCAPED_UNICODE),
-    'image' => $image,
-]);
-$variantId = (int) $pdo->lastInsertId();
+try {
+    $pdo->beginTransaction();
+    $pdo->prepare(
+        'UPDATE products SET status = "pending_review"
+         WHERE id = :product_id AND seller_id = :seller_id'
+    )->execute(['product_id' => $productId, 'seller_id' => $sellerId]);
+    $stmt = $pdo->prepare(
+        'INSERT INTO product_variants (product_id, sku, price, compare_at_price, stock_quantity, attributes, image)
+         VALUES (:product_id, :sku, :price, :compare_price, :stock, :attributes, :image)'
+    );
+    $stmt->execute([
+        'product_id' => $productId,
+        'sku' => $sku,
+        'price' => $price,
+        'compare_price' => $comparePrice,
+        'stock' => $stock,
+        'attributes' => json_encode(['Phiên bản' => $variantAttr], JSON_UNESCAPED_UNICODE),
+        'image' => $image,
+    ]);
+    $variantId = (int) $pdo->lastInsertId();
 
-$pdo->prepare(
-    'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
-     VALUES (:variant_id, "import", :quantity, 0, :quantity, :reference_id, :created_by)'
-)->execute([
-    'variant_id' => $variantId,
-    'quantity' => $stock,
-    'reference_id' => 'PRODUCT-' . $productId,
-    'created_by' => $sellerId,
-]);
+    $pdo->prepare(
+        'INSERT INTO inventory_logs (variant_id, type, quantity_changed, previous_stock, new_stock, reference_id, created_by)
+         VALUES (:variant_id, "import", :quantity_changed, 0, :new_stock, :reference_id, :created_by)'
+    )->execute([
+        'variant_id' => $variantId,
+        'quantity_changed' => $stock,
+        'new_stock' => $stock,
+        'reference_id' => 'PRODUCT-' . $productId,
+        'created_by' => $sellerId,
+    ]);
 
-$pdo->commit();
-json_success(['id' => $variantId, 'productId' => $productId], 'Đã thêm biến thể mới.', 201);
+    $pdo->commit();
+    json_success(['id' => $variantId, 'productId' => $productId], 'Đã thêm biến thể mới.', 201);
+} catch (Throwable $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    if ($e instanceof PDOException && (string)$e->getCode() === '23000' && str_contains(strtolower($e->getMessage()), 'sku')) {
+        json_error('Mã SKU "' . $sku . '" đã tồn tại trong hệ thống. Vui lòng nhập mã SKU khác.', 409);
+    }
+    json_error('Lỗi khi thêm biến thể: ' . $e->getMessage(), 500);
+}
