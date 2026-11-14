@@ -4,6 +4,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { CartProvider } from './contexts/CartContext';
 import { WishlistProvider } from './contexts/WishlistContext';
+import { AuthModalProvider } from './contexts/AuthModalContext';
 import { AppRoutes } from './routes/AppRoutes';
 
 function ScrollToTop() {
@@ -21,13 +22,15 @@ export default function App() {
     <BrowserRouter>
       <ScrollToTop />
       <AuthProvider>
-        <ToastProvider>
-          <CartProvider>
-            <WishlistProvider>
-              <AppRoutes />
-            </WishlistProvider>
-          </CartProvider>
-        </ToastProvider>
+        <AuthModalProvider>
+          <ToastProvider>
+            <CartProvider>
+              <WishlistProvider>
+                <AppRoutes />
+              </WishlistProvider>
+            </CartProvider>
+          </ToastProvider>
+        </AuthModalProvider>
       </AuthProvider>
     </BrowserRouter>
   );

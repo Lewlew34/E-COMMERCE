@@ -21,6 +21,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
+import { useAuthModal } from '../contexts/AuthModalContext';
 import { AIChatWidget } from '../components/common/AIChatWidget';
 import { TawkToChat } from '../components/common/TawkToChat';
 
@@ -28,6 +29,7 @@ export const CustomerLayout: React.FC = () => {
   const { user, logout, isAdmin, isSeller } = useAuth();
   const { totalCount } = useCart();
   const { totalWishlistCount } = useWishlist();
+  const { openAuthModal } = useAuthModal();
   const [searchQuery, setSearchQuery] = useState('');
   const [showUserMenu, setShowUserMenu] = useState(false);
   const navigate = useNavigate();
@@ -37,6 +39,20 @@ export const CustomerLayout: React.FC = () => {
     e.preventDefault();
     if (searchQuery.trim()) {
       navigate(`/catalog?q=${encodeURIComponent(searchQuery)}`);
+    }
+  };
+
+  const handleWishlistClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault();
+      openAuthModal('Danh sách yêu thích', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để xem và quản lý danh sách sản phẩm công nghệ yêu thích của bạn.');
+    }
+  };
+
+  const handleCartClick = (e: React.MouseEvent) => {
+    if (!user) {
+      e.preventDefault();
+      openAuthModal('Giỏ hàng', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để truy cập giỏ hàng và tiến hành thanh toán đơn hàng.');
     }
   };
 
@@ -115,12 +131,13 @@ export const CustomerLayout: React.FC = () => {
             {/* Yêu thích */}
             <Link
               to="/wishlist"
+              onClick={handleWishlistClick}
               className="relative p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-1.5"
               title="Danh sách yêu thích"
             >
               <div className="relative">
                 <Heart className="w-5 h-5 text-slate-700" />
-                {totalWishlistCount > 0 && (
+                {user && totalWishlistCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center shadow">
                     {totalWishlistCount}
                   </span>
@@ -132,12 +149,13 @@ export const CustomerLayout: React.FC = () => {
             {/* Giỏ hàng */}
             <Link
               to="/cart"
+              onClick={handleCartClick}
               className="relative p-2 rounded-xl text-slate-700 hover:bg-slate-100 transition-colors flex items-center gap-2"
               title="Giỏ hàng"
             >
               <div className="relative">
                 <ShoppingCart className="w-6 h-6 text-slate-700" />
-                {totalCount > 0 && (
+                {user && totalCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-blue-600 text-white text-[11px] font-bold rounded-full flex items-center justify-center shadow">
                     {totalCount}
                   </span>
@@ -210,7 +228,7 @@ export const CustomerLayout: React.FC = () => {
                     <div className="border-t border-slate-100 my-1"></div>
                     <button
                       onClick={() => { logout(); setShowUserMenu(false); }}
-                      className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-red-600"
+                      className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Đăng xuất</span>
@@ -219,13 +237,33 @@ export const CustomerLayout: React.FC = () => {
                 )}
               </div>
             ) : (
-              <Link
-                to="/login"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-blue-50 text-blue-600 font-semibold text-xs transition-colors"
-              >
-                <UserIcon className="w-4 h-4" />
-                <span>Đăng nhập</span>
-              </Link>
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Trạng thái chưa đăng nhập */}
+                <div className="hidden sm:flex flex-col items-end text-right leading-tight">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-200"></span>
+                    Chưa đăng nhập
+                  </span>
+                  <span className="text-[10px] text-slate-400">Khách vãng lai</span>
+                </div>
+
+                {/* Các nút hành động đăng nhập & đăng ký */}
+                <div className="flex items-center gap-1.5">
+                  <Link
+                    to="/login"
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-colors"
+                  >
+                    <UserIcon className="w-3.5 h-3.5" />
+                    <span>Đăng nhập</span>
+                  </Link>
+                  <Link
+                    to="/register"
+                    className="hidden md:inline-flex items-center gap-1 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors"
+                  >
+                    <span>Đăng ký</span>
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </div>

@@ -50,11 +50,6 @@ export const LoginPage: React.FC = () => {
     setLoading(false);
   };
 
-  const handleFillDemo = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword('123456');
-  };
-
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-7 text-slate-100">
       <div className="text-center mb-6">
@@ -117,48 +112,6 @@ export const LoginPage: React.FC = () => {
           <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
         </button>
       </form>
-
-      {/* Thông tin tài khoản mẫu hỗ trợ kiểm thử */}
-      <div className="mt-6 pt-5 border-t border-slate-800 text-[11px] text-slate-400">
-        <div className="font-semibold text-slate-300 mb-2 flex items-center justify-between">
-          <span>Gợi ý tài khoản kiểm thử:</span>
-          <span className="text-[10px] text-slate-500">Bấm để điền nhanh</span>
-        </div>
-        <div className="grid grid-cols-1 gap-1.5 font-mono text-xs">
-          <button
-            type="button"
-            onClick={() => handleFillDemo('admin@techmart.vn')}
-            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
-          >
-            <div>
-              <span className="text-amber-400 font-bold">Admin:</span> admin@techmart.vn
-            </div>
-            <span className="text-[10px] text-slate-400">Pass: 123456</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => { navigate('/seller/register'); }}
-            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
-          >
-            <div>
-              <span className="text-emerald-400 font-bold">Seller:</span> Tạo tài khoản Seller
-            </div>
-            <span className="text-[10px] text-slate-400">Đăng ký qua SQL</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleFillDemo('khachhang@techstore.vn')}
-            className="flex items-center justify-between p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-left transition-colors border border-slate-700/60 cursor-pointer"
-          >
-            <div>
-              <span className="text-blue-400 font-bold">Khách:</span> khachhang@techstore.vn
-            </div>
-            <span className="text-[10px] text-slate-400">Pass: 123456</span>
-          </button>
-        </div>
-      </div>
 
       {/* Footer Navigation */}
       <div className="mt-6 text-center text-xs text-slate-400 space-y-2">

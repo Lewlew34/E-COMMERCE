@@ -19,14 +19,9 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Always start unauthenticated on fresh app load unless an explicit active session is in sessionStorage
   const [user, setUser] = useState<User | null>(() => {
     try {
-      // Clear legacy permanent localStorage to ensure login screen is required first
-      localStorage.removeItem('tech_store_user');
-      localStorage.removeItem('techmart_auth_user');
-
-      const saved = sessionStorage.getItem('tech_store_session_user');
+      const saved = sessionStorage.getItem('tech_store_session_user') || localStorage.getItem('tech_store_user');
       if (saved) {
         return JSON.parse(saved);
       }
@@ -39,8 +34,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (user) {
       sessionStorage.setItem('tech_store_session_user', JSON.stringify(user));
+      localStorage.setItem('tech_store_user', JSON.stringify(user));
     } else {
       sessionStorage.removeItem('tech_store_session_user');
+      localStorage.removeItem('tech_store_user');
     }
   }, [user]);
 

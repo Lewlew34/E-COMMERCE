@@ -50,45 +50,47 @@ export const AppRoutes: React.FC = () => {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       </Route>
 
-      {/* 2. CÁC TRANG CỦA SÀN (BẢO VỆ: YÊU CẦU ĐÃ ĐĂNG NHẬP) */}
-      <Route element={<ProtectedRoute />}>
-        {/* Phân hệ Khách hàng / Mua sắm (Customer) */}
-        <Route element={<CustomerLayout />}>
-          <Route index element={<CustomerHomePage />} />
-          <Route path="catalog" element={<CatalogPage />} />
-          <Route path="product/:id" element={<ProductDetailPage />} />
+      {/* 2. PHÂN HỆ KHÁCH HÀNG & MUA SẮM (CUSTOMER STOREFRONT) */}
+      <Route element={<CustomerLayout />}>
+        {/* 2.1 Các trang công khai: Khách vãng lai xem và tìm kiếm sản phẩm thoải mái */}
+        <Route index element={<CustomerHomePage />} />
+        <Route path="catalog" element={<CatalogPage />} />
+        <Route path="product/:id" element={<ProductDetailPage />} />
+
+        {/* 2.2 Các trang bảo vệ: Bắt buộc đăng nhập tài khoản */}
+        <Route element={<ProtectedRoute allowedRoles={['customer', 'staff', 'seller', 'admin']} />}>
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="order-success/:code" element={<OrderSuccessPage />} />
           <Route path="customer/orders" element={<CustomerOrdersPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
         </Route>
+      </Route>
 
-        {/* 3. PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN ROUTES - role: admin) */}
-        <Route element={<ProtectedRoute allowedRoles={['admin', 'ADMIN']} />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="/admin/dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="sellers" element={<AdminSellersPage />} />
-            <Route path="products" element={<AdminProductsPage />} />
-            <Route path="categories" element={<AdminCategoriesPage />} />
-            <Route path="reports" element={<AdminReportsPage />} />
-            <Route path="settings" element={<AdminSettingsPage />} />
-            <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
-          </Route>
+      {/* 3. PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN ROUTES - role: admin) */}
+      <Route element={<ProtectedRoute allowedRoles={['admin', 'ADMIN']} />}>
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route path="sellers" element={<AdminSellersPage />} />
+          <Route path="products" element={<AdminProductsPage />} />
+          <Route path="categories" element={<AdminCategoriesPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="settings" element={<AdminSettingsPage />} />
+          <Route path="*" element={<Navigate to="/admin/dashboard" replace />} />
         </Route>
+      </Route>
 
-        {/* 4. PHÂN HỆ NGƯỜI BÁN HÀNG (SELLER ROUTES - role: staff / seller) */}
-        <Route element={<ProtectedRoute allowedRoles={['staff', 'seller', 'SELLER']} />}>
-          <Route path="/seller" element={<SellerLayout />}>
-            <Route index element={<Navigate to="/seller/dashboard" replace />} />
-            <Route path="dashboard" element={<SellerDashboardPage />} />
-            <Route path="products" element={<SellerProductsPage />} />
-            <Route path="orders" element={<SellerOrdersPage />} />
-            <Route path="analytics" element={<SellerAnalyticsPage />} />
-            <Route path="*" element={<Navigate to="/seller/dashboard" replace />} />
-          </Route>
+      {/* 4. PHÂN HỆ NGƯỜI BÁN HÀNG (SELLER ROUTES - role: staff / seller) */}
+      <Route element={<ProtectedRoute allowedRoles={['staff', 'seller', 'SELLER']} />}>
+        <Route path="/seller" element={<SellerLayout />}>
+          <Route index element={<Navigate to="/seller/dashboard" replace />} />
+          <Route path="dashboard" element={<SellerDashboardPage />} />
+          <Route path="products" element={<SellerProductsPage />} />
+          <Route path="orders" element={<SellerOrdersPage />} />
+          <Route path="analytics" element={<SellerAnalyticsPage />} />
+          <Route path="*" element={<Navigate to="/seller/dashboard" replace />} />
         </Route>
       </Route>
 

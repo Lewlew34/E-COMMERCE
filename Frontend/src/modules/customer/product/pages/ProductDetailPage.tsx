@@ -23,6 +23,7 @@ import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useToast } from '../../../../contexts/ToastContext';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { useAuthModal } from '../../../../contexts/AuthModalContext';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -30,7 +31,8 @@ export const ProductDetailPage: React.FC = () => {
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { showToast } = useToast();
-  const { isAdmin, isSeller } = useAuth();
+  const { user, isAdmin, isSeller } = useAuth();
+  const { openAuthModal } = useAuthModal();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
@@ -92,12 +94,28 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   const handleAddToCart = () => {
+    if (!user) {
+      openAuthModal('Giỏ hàng', 'Vui lòng đăng nhập hoặc tạo tài khoản để thêm sản phẩm công nghệ này vào giỏ hàng.');
+      return;
+    }
     addToCart(selectedVariant.id, quantity);
   };
 
   const handleBuyNow = () => {
+    if (!user) {
+      openAuthModal('Thanh toán', 'Vui lòng đăng nhập hoặc tạo tài khoản để mua ngay sản phẩm này.');
+      return;
+    }
     addToCart(selectedVariant.id, quantity);
     navigate('/checkout');
+  };
+
+  const handleToggleWishlist = () => {
+    if (!user) {
+      openAuthModal('Danh sách yêu thích', 'Vui lòng đăng nhập hoặc tạo tài khoản để lưu sản phẩm vào danh sách yêu thích.');
+      return;
+    }
+    toggleWishlist(product.id, product.name);
   };
 
   const handleShare = () => {
@@ -173,7 +191,7 @@ export const ProductDetailPage: React.FC = () => {
             )}
             <div className="absolute top-3 right-3 flex items-center gap-2">
               <button 
-                onClick={() => toggleWishlist(product.id, product.name)}
+                onClick={handleToggleWishlist}
                 className={`w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-md ${
                   isFavorite 
                     ? 'bg-red-500 text-white' 

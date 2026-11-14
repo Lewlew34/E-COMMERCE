@@ -6,6 +6,8 @@ import type { Brand, Category, Product } from '../../../../types/ecommerce.types
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useAuthModal } from '../../../../contexts/AuthModalContext';
 
 const normalizeFilterValue = (value: string | undefined) =>
   value?.trim().toLocaleLowerCase() || '';
@@ -33,8 +35,26 @@ export const CatalogPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
+  const { user } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+
+  const handleToggleWishlist = (productId: number, productName?: string) => {
+    if (!user) {
+      openAuthModal('Danh sách yêu thích', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để lưu sản phẩm vào danh sách yêu thích của bạn.');
+      return;
+    }
+    toggleWishlist(productId, productName);
+  };
+
+  const handleAddToCart = (variantId: number, quantity: number = 1) => {
+    if (!user) {
+      openAuthModal('Giỏ hàng', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để thêm sản phẩm công nghệ này vào giỏ hàng.');
+      return;
+    }
+    addToCart(variantId, quantity);
+  };
 
   const selectedCategory = categories.find(
     category => normalizeFilterValue(category.slug) === normalizeFilterValue(selectedCategorySlug)
@@ -272,7 +292,7 @@ export const CatalogPage: React.FC = () => {
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />
                         <button
-                          onClick={() => toggleWishlist(product.id, product.name)}
+                          onClick={() => handleToggleWishlist(product.id, product.name)}
                           className={`absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center shadow transition-colors ${
                             isFav ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-500 hover:text-red-500 hover:bg-white'
                           }`}
@@ -321,7 +341,7 @@ export const CatalogPage: React.FC = () => {
                           <Eye className="w-3.5 h-3.5" />
                         </Link>
                         <button
-                          onClick={() => primaryVariant && addToCart(primaryVariant.id, 1)}
+                          onClick={() => primaryVariant && handleAddToCart(primaryVariant.id, 1)}
                           className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white transition-colors cursor-pointer shadow-xs"
                           title="Thêm vào giỏ"
                         >

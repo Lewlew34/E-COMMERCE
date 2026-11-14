@@ -21,11 +21,31 @@ import { productService, phpApiService } from '../../../../services/storageServi
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useAuthModal } from '../../../../contexts/AuthModalContext';
 import type { Product } from '../../../../types/ecommerce.types';
 
 export const CustomerHomePage: React.FC = () => {
+  const { user } = useAuth();
+  const { openAuthModal } = useAuthModal();
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
+
+  const handleToggleWishlist = (productId: number, productName?: string) => {
+    if (!user) {
+      openAuthModal('Danh sách yêu thích', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để lưu sản phẩm vào danh sách yêu thích của bạn.');
+      return;
+    }
+    toggleWishlist(productId, productName);
+  };
+
+  const handleAddToCart = (variantId: number, quantity: number = 1) => {
+    if (!user) {
+      openAuthModal('Giỏ hàng', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để thêm sản phẩm công nghệ này vào giỏ hàng.');
+      return;
+    }
+    addToCart(variantId, quantity);
+  };
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -342,7 +362,7 @@ export const CustomerHomePage: React.FC = () => {
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <button
-                        onClick={() => toggleWishlist(p.id, p.name)}
+                        onClick={() => handleToggleWishlist(p.id, p.name)}
                         className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center transition-colors shadow ${
                           isFav ? 'bg-red-500 text-white' : 'bg-white/90 text-slate-500 hover:text-red-500 hover:bg-white'
                         }`}
@@ -388,7 +408,7 @@ export const CustomerHomePage: React.FC = () => {
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => v && addToCart(v.id, 1)}
+                        onClick={() => v && handleAddToCart(v.id, 1)}
                         className="p-2 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-600 hover:text-white transition-colors cursor-pointer"
                         title="Thêm vào giỏ hàng"
                       >
