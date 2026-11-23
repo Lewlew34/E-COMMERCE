@@ -4,6 +4,7 @@ interface TawkApi {
   onLoad?: () => void;
   showWidget?: () => void;
   hideWidget?: () => void;
+  isLoaded?: () => boolean;
 }
 
 declare global {
@@ -22,8 +23,10 @@ export function TawkToChat() {
     if (!propertyId || !widgetId) return;
 
     isMounted.current = true;
-    const tawkApi = window.Tawk_API ?? {};
+
+    const tawkApi: TawkApi = window.Tawk_API ?? {};
     const previousOnLoad = tawkApi.onLoad;
+
     tawkApi.onLoad = () => {
       previousOnLoad?.();
       if (isMounted.current) {
@@ -34,22 +37,27 @@ export function TawkToChat() {
     };
     window.Tawk_API = tawkApi;
 
-    const existingScript = document.getElementById('tawk-to-widget');
+    const existingScript = document.getElementById('tawk-to-widget') as HTMLScriptElement | null;
     if (existingScript) {
-      tawkApi.showWidget?.();
+      if (tawkApi.isLoaded?.()) {
+        tawkApi.showWidget?.();
+      }
     } else {
       window.Tawk_LoadStart = new Date();
       const script = document.createElement('script');
       script.id = 'tawk-to-widget';
       script.async = true;
       script.src = `https://embed.tawk.to/${encodeURIComponent(propertyId)}/${encodeURIComponent(widgetId)}`;
+      script.charset = 'UTF-8';
       script.crossOrigin = 'anonymous';
       document.body.appendChild(script);
     }
 
     return () => {
       isMounted.current = false;
-      tawkApi.hideWidget?.();
+      if (tawkApi.isLoaded?.()) {
+        tawkApi.hideWidget?.();
+      }
     };
   }, [propertyId, widgetId]);
 

@@ -20,7 +20,8 @@ import { CatalogPage } from '../modules/customer/catalog/pages/CatalogPage';
 import { ProductDetailPage } from '../modules/customer/product/pages/ProductDetailPage';
 import { CartPage } from '../modules/customer/cart/pages/CartPage';
 import { CheckoutPage } from '../modules/customer/checkout/pages/CheckoutPage';
-import { OrderSuccessPage } from '../modules/customer/orders/pages/OrderSuccessPage';
+import { OrderSuccessPage } from '../modules/customer/checkout/pages/OrderSuccessPage';
+import { OrderFailedPage } from '../modules/customer/checkout/pages/OrderFailedPage';
 import { CustomerOrdersPage } from '../modules/customer/orders/pages/CustomerOrdersPage';
 import { WishlistPage } from '../modules/customer/wishlist/pages/WishlistPage';
 import { ChatInboxPage } from '../modules/chat/pages/ChatInboxPage';
@@ -63,7 +64,13 @@ export const AppRoutes: React.FC = () => {
         <Route element={<ProtectedRoute allowedRoles={['customer', 'staff', 'seller', 'admin']} />}>
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
+          <Route path="order-success" element={<OrderSuccessPage />} />
           <Route path="order-success/:code" element={<OrderSuccessPage />} />
+          
+          {/* --- CÁC TRANG THANH TOÁN VÀ LỊCH SỬ ĐƠN HÀNG --- */}
+          <Route path="order-failed" element={<OrderFailedPage />} />
+          <Route path="order-history" element={<CustomerOrdersPage />} />
+
           <Route path="customer/orders" element={<CustomerOrdersPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
           <Route element={<ProtectedRoute allowedRoles={['customer']} />}>

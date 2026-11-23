@@ -101,11 +101,13 @@ if ($method === 'PATCH') {
     $pdo->beginTransaction();
 
     $stmt = $pdo->prepare(
-        'SELECT o.id, o.order_code, COALESCE(sos.status, o.order_status) AS seller_status
+        'SELECT o.id, o.order_code, o.order_status AS main_order_status,
+                COALESCE(sos.status, o.order_status) AS seller_status
          FROM orders o
          LEFT JOIN seller_order_status sos ON sos.order_id = o.id AND sos.seller_id = :seller_id
          WHERE o.id = :order_id
-           AND EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.seller_id = :seller_id_items)'
+           AND EXISTS (SELECT 1 FROM order_items oi WHERE oi.order_id = o.id AND oi.seller_id = :seller_id_items)
+         FOR UPDATE'
     );
     $stmt->execute([
         'seller_id' => $sellerId,
@@ -143,6 +145,29 @@ if ($method === 'PATCH') {
         'status' => $nextStatus,
         'tracking_number' => trim((string) ($body['trackingNumber'] ?? '')) ?: null,
     ]);
+
+    // Đồng bộ trạng thái sang bảng orders để trang khách hàng luôn đọc được trạng thái mới
+    $syncMainStatus = $nextStatus;
+    if ($nextStatus === 'cancelled') {
+        $remainingActiveStmt = $pdo->prepare(
+            'SELECT COUNT(*) AS cnt
+             FROM order_items oi
+             LEFT JOIN seller_order_status sos
+               ON sos.order_id = oi.order_id AND sos.seller_id = oi.seller_id
+             WHERE oi.order_id = :order_id
+               AND COALESCE(sos.status, "pending") <> "cancelled"'
+        );
+        $remainingActiveStmt->execute(['order_id' => $orderId]);
+        $remainingCount = (int) ($remainingActiveStmt->fetch()['cnt'] ?? 0);
+        if ($remainingCount > 0) {
+            $syncMainStatus = null;
+        }
+    }
+
+    if ($syncMainStatus !== null) {
+        $pdo->prepare('UPDATE orders SET order_status = :status, updated_at = NOW() WHERE id = :id')
+            ->execute(['status' => $syncMainStatus, 'id' => $orderId]);
+    }
 
     if ($nextStatus === 'cancelled') {
         $ownedItems = $pdo->prepare(

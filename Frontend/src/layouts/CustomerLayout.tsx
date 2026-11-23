@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
-import { 
-  ShoppingCart, 
-  Search, 
-  User as UserIcon, 
-  ShieldCheck, 
-  Truck, 
-  Headphones, 
+import {
+  ShoppingCart,
+  Search,
+  User as UserIcon,
+  ShieldCheck,
+  Truck,
+  Headphones,
   RefreshCw,
   Cpu,
   Laptop,
@@ -17,7 +17,8 @@ import {
   Heart,
   Package,
   Store,
-  MessageCircle
+  MessageCircle,
+  History
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -39,22 +40,29 @@ export const CustomerLayout: React.FC = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/catalog?q=${encodeURIComponent(searchQuery)}`);
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
+      navigate(`/catalog?q=${encodeURIComponent(trimmedQuery)}`);
     }
   };
 
   const handleWishlistClick = (e: React.MouseEvent) => {
     if (!user) {
       e.preventDefault();
-      openAuthModal('Danh sách yêu thích', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để xem và quản lý danh sách sản phẩm công nghệ yêu thích của bạn.');
+      openAuthModal(
+        'Danh sách yêu thích',
+        'Vui lòng đăng nhập hoặc đăng ký tài khoản để xem và quản lý danh sách sản phẩm công nghệ yêu thích của bạn.'
+      );
     }
   };
 
   const handleCartClick = (e: React.MouseEvent) => {
     if (!user) {
       e.preventDefault();
-      openAuthModal('Giỏ hàng', 'Vui lòng đăng nhập hoặc đăng ký tài khoản để truy cập giỏ hàng và tiến hành thanh toán đơn hàng.');
+      openAuthModal(
+        'Giỏ hàng',
+        'Vui lòng đăng nhập hoặc đăng ký tài khoản để truy cập giỏ hàng và tiến hành thanh toán đơn hàng.'
+      );
     }
   };
 
@@ -91,7 +99,9 @@ export const CustomerLayout: React.FC = () => {
                 <span>🏪 Quay về Kênh Người Bán</span>
               </Link>
             )}
-            <span className="text-slate-400 hidden sm:inline">Hotline hỗ trợ: <strong className="text-white">1900 8888</strong></span>
+            <span className="text-slate-400 hidden sm:inline">
+              Hotline hỗ trợ: <strong className="text-white">1900 8888</strong>
+            </span>
           </div>
         </div>
       </div>
@@ -170,12 +180,13 @@ export const CustomerLayout: React.FC = () => {
               <span className="hidden lg:inline text-xs font-medium text-slate-600">Giỏ hàng</span>
             </Link>
 
-            <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+            <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block" />
 
             {/* Tài khoản */}
             {user ? (
               <div className="relative">
                 <button
+                  type="button"
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left"
                 >
@@ -190,7 +201,7 @@ export const CustomerLayout: React.FC = () => {
                 </button>
 
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-xs">
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-xs">
                     <div className="px-4 py-2 border-b border-slate-100">
                       <div className="font-bold text-slate-900">{user.name}</div>
                       <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
@@ -215,12 +226,22 @@ export const CustomerLayout: React.FC = () => {
                         <span>🏪 Kênh Người Bán (Seller)</span>
                       </Link>
                     )}
+
+                    <Link
+                      to="/order-history"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 hover:bg-blue-50 text-blue-600 font-semibold"
+                    >
+                      <History className="w-4 h-4 text-blue-600" />
+                      <span>Lịch sử đơn hàng của tôi</span>
+                    </Link>
+
                     <Link
                       to="/customer/orders"
                       onClick={() => setShowUserMenu(false)}
                       className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
                     >
-                      <Package className="w-4 h-4 text-blue-600" />
+                      <Package className="w-4 h-4 text-slate-500" />
                       <span>Đơn hàng của tôi</span>
                     </Link>
                     {!isSeller && !isAdmin && (
@@ -241,9 +262,13 @@ export const CustomerLayout: React.FC = () => {
                       <Heart className="w-4 h-4 text-red-500" />
                       <span>Sản phẩm yêu thích</span>
                     </Link>
-                    <div className="border-t border-slate-100 my-1"></div>
+                    <div className="border-t border-slate-100 my-1" />
                     <button
-                      onClick={() => { logout(); setShowUserMenu(false); }}
+                      type="button"
+                      onClick={() => {
+                        logout();
+                        setShowUserMenu(false);
+                      }}
                       className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />
@@ -254,16 +279,14 @@ export const CustomerLayout: React.FC = () => {
               </div>
             ) : (
               <div className="flex items-center gap-2 sm:gap-3">
-                {/* Trạng thái chưa đăng nhập */}
                 <div className="hidden sm:flex flex-col items-end text-right leading-tight">
                   <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-200"></span>
+                    <span className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-200" />
                     Chưa đăng nhập
                   </span>
                   <span className="text-[10px] text-slate-400">Khách vãng lai</span>
                 </div>
 
-                {/* Các nút hành động đăng nhập & đăng ký */}
                 <div className="flex items-center gap-1.5">
                   <Link
                     to="/login"
@@ -299,14 +322,25 @@ export const CustomerLayout: React.FC = () => {
             <Link to="/catalog?cat=pc-component" className="flex items-center gap-1.5 hover:text-blue-600">
               <Cpu className="w-4 h-4" /> Linh kiện PC & VGA
             </Link>
+            {user && (
+              <Link to="/order-history" className="flex items-center gap-1.5 hover:text-blue-600 text-slate-700">
+                <History className="w-4 h-4 text-blue-600" /> Lịch sử đơn hàng
+              </Link>
+            )}
             {isSeller && (
-              <Link to="/seller/dashboard" className="ml-auto text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 transition-colors shadow-xs">
+              <Link
+                to="/seller/dashboard"
+                className="ml-auto text-emerald-700 hover:text-emerald-800 font-bold flex items-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 px-3 py-1 rounded-lg border border-emerald-200 transition-colors shadow-xs"
+              >
                 <Store className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Kênh Người Bán (Seller) →</span>
               </Link>
             )}
             {isAdmin && (
-              <Link to="/admin/dashboard" className="ml-auto text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded-lg border border-amber-200 transition-colors shadow-xs">
+              <Link
+                to="/admin/dashboard"
+                className="ml-auto text-amber-700 hover:text-amber-800 font-bold flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 px-3 py-1 rounded-lg border border-amber-200 transition-colors shadow-xs"
+              >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
                 <span>Kênh Quản Trị Admin →</span>
               </Link>
