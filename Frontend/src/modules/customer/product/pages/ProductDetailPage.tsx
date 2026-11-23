@@ -13,7 +13,8 @@ import {
   Cpu, 
   ChevronRight,
   Minus,
-  Plus
+  Plus,
+  MessageCircle
 } from 'lucide-react';
 import { productService } from '../../../../services/storageService';
 import { catalogApi } from '../../../../api';
@@ -384,6 +385,15 @@ export const ProductDetailPage: React.FC = () => {
               <span>Mua ngay - Giao hỏa tốc 2H</span>
             </button>
           </div>
+          {product.sellerId && !isSeller && !isAdmin && (
+            <Link
+              to={`/customer/messages?sellerId=${product.sellerId}`}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-3 text-xs font-bold text-slate-700 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Liên hệ shop {product.shopName ? `· ${product.shopName}` : ''}
+            </Link>
+          )}
         </div>
       </div>
 

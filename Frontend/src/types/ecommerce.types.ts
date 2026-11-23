@@ -30,6 +30,8 @@ export type ProductStatus = 'draft' | 'active' | 'archived' | 'pending_review' |
 
 export interface Product {
   id: number;
+  sellerId?: number | null;
+  shopName?: string | null;
   name: string;
   slug: string;
   brandId: number;

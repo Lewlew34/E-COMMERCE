@@ -21,14 +21,21 @@ export async function apiClient<T>(
   } = {}
 ): Promise<T> {
   const url = `${API_BASE_URL}/${endpoint}`;
+  const isFormData = options.body instanceof FormData;
+  let requestBody: BodyInit | undefined;
+  if (options.body instanceof FormData) {
+    requestBody = options.body;
+  } else if (options.body !== undefined) {
+    requestBody = JSON.stringify(options.body);
+  }
   const response = await fetch(url, {
     method: options.method || 'GET',
     credentials: 'include', // Giữ cookie session PHP
     headers: {
-      ...(options.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.body !== undefined && !isFormData ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers || {})
     },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined
+    body: requestBody
   });
 
   const text = await response.text();

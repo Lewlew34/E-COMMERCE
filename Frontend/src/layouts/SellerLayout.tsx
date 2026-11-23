@@ -8,11 +8,13 @@ import {
   LogOut, 
   ExternalLink,
   PlusCircle,
-  Store
+  Store,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { sellerApiService } from '../services/storageService';
 import { useToast } from '../contexts/ToastContext';
+import { ChatNotificationLink } from '../modules/chat/components/ChatNotificationLink';
 
 export const SellerLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -34,6 +36,7 @@ export const SellerLayout: React.FC = () => {
     { name: 'Tổng quan Shop', path: '/seller/dashboard', icon: LayoutDashboard },
     { name: 'Quản lý Sản phẩm & Kho', path: '/seller/products', icon: Package },
     { name: 'Xử lý Đơn hàng', path: '/seller/orders', icon: ShoppingBag },
+    { name: 'Tin nhắn khách hàng', path: '/seller/messages', icon: MessageCircle },
     { name: 'Doanh thu & Phân tích', path: '/seller/analytics', icon: TrendingUp },
   ];
 
@@ -151,6 +154,7 @@ export const SellerLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <ChatNotificationLink isSeller />
             <div className="text-xs text-slate-500">
               Gian hàng: <strong className="text-emerald-700">{user?.shopName || 'Chưa cập nhật'}</strong>
             </div>

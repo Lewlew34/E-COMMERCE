@@ -111,7 +111,7 @@ E-COMMERCE/
 
 ## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu (`techecommercedb`)
 
-Database gồm các bảng nghiệp vụ chính và bảng `seller_order_status` được thêm bởi migration Seller:
+Database gồm các bảng nghiệp vụ chính; các migration Seller và Chat thêm bảng trạng thái đơn Seller, hội thoại và tin nhắn:
 
 | STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
 | :---: | :--- | :--- |
@@ -131,6 +131,8 @@ Database gồm các bảng nghiệp vụ chính và bảng `seller_order_status`
 | 14 | `wishlists` | Danh sách sản phẩm được khách hàng lưu yêu thích |
 | 15 | `inventory_logs` | Lịch sử biến động kho (Tự động trừ tồn kho khi phát sinh đơn hàng) |
 | 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn nhiều shop |
+| 17 | `chat_conversations` | Hội thoại riêng cho mỗi cặp khách hàng và shop |
+| 18 | `chat_messages` | Tin nhắn trong hội thoại, chỉ khách và shop tham gia được xem |
 
 ---
 
@@ -144,7 +146,11 @@ Database gồm các bảng nghiệp vụ chính và bảng `seller_order_status`
 ### Cấu hình Backend với XAMPP:
 1. Mở XAMPP Control Panel và khởi chạy **Apache** cùng **MySQL**.
 2. Đặt/cập nhật thư mục `Backend` của dự án tại `C:\xampp\htdocs\TechMart\Backend`. Frontend hiện gọi API tại `http://localhost/TechMart/Backend/api`.
-3. Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, rồi import `Backend/migrations/20261108_seller_center.sql` **một lần duy nhất**. Migration thêm thông tin gian hàng, quyền sở hữu sản phẩm/đơn hàng và trạng thái xử lý riêng của Seller. Không chạy lại sau khi đã import.
+3. Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, rồi import các file migration **mỗi file đúng một lần** theo thứ tự:
+   - `Backend/migrations/20261108_seller_center.sql` (nếu chưa chạy trước đó).
+   - `Backend/migrations/20261118_shop_chat.sql` để tạo các bảng lưu hội thoại và tin nhắn.
+   - `Backend/migrations/20261118_chat_enhancements.sql` để bật trạng thái đã đọc, thông báo tin mới, ảnh và chia sẻ sản phẩm/đơn hàng trong chat.
+   - `Backend/migrations/20261118_chat_replies_and_delete.sql` để bật trả lời và xóa tin nhắn trong chat.
 4. Cấu hình kết nối MySQL mặc định nằm trong `Backend/config/database.php` (host `localhost`, database `techecommercedb`, user `root`, mật khẩu trống). Nếu XAMPP của bạn dùng cấu hình khác, cập nhật file này.
 5. Nếu database chưa có tài khoản Admin đang hoạt động, mở PowerShell tại thư mục dự án và tạo một tài khoản riêng bằng CLI:
 
@@ -169,6 +175,7 @@ Database gồm các bảng nghiệp vụ chính và bảng `seller_order_status`
 
 7. Đăng ký tài khoản khách hàng riêng để thử checkout. Seller chỉ được vào Seller Center sau khi Admin duyệt hồ sơ. Đơn đặt cho sản phẩm đã gán Seller sẽ xuất hiện trong Seller Center. Tài khoản/demo đăng nhập cũ chạy local không tạo đơn database.
 8. Để tạo một đơn hàng thử nghiệm mà không cần thao tác checkout, chỉnh email Seller/Customer và slug sản phẩm trong `Backend/seed_seller_test.sql`, rồi chạy file đó trong phpMyAdmin. Script chỉ gán sản phẩm được chọn, tạo một đơn chờ xác nhận và trừ một sản phẩm tồn kho; chạy mỗi lần sẽ tạo thêm một đơn mới.
+9. Khách hàng có thể vào **Tin nhắn** trên thanh điều hướng hoặc chọn **Liên hệ shop** ở trang sản phẩm; Seller xem và trả lời khách trong mục **Tin nhắn khách hàng** ở Seller Center. Tin nhắn mới hiện huy hiệu và thông báo khi đang ở trang khác; có thể gửi ảnh JPEG/PNG/WebP/GIF tối đa 5 MB, chia sẻ sản phẩm/đơn liên quan, trả lời một tin cụ thể hoặc xóa tin do chính mình gửi (tin được thay bằng dấu đã xóa cho cả hai bên).
 
 ### Chạy phân hệ Frontend:
 ```powershell

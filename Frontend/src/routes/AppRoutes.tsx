@@ -23,6 +23,7 @@ import { CheckoutPage } from '../modules/customer/checkout/pages/CheckoutPage';
 import { OrderSuccessPage } from '../modules/customer/orders/pages/OrderSuccessPage';
 import { CustomerOrdersPage } from '../modules/customer/orders/pages/CustomerOrdersPage';
 import { WishlistPage } from '../modules/customer/wishlist/pages/WishlistPage';
+import { ChatInboxPage } from '../modules/chat/pages/ChatInboxPage';
 
 // Admin Pages
 import { AdminDashboardPage } from '../modules/admin/dashboard/pages/AdminDashboardPage';
@@ -62,6 +63,9 @@ export const AppRoutes: React.FC = () => {
           <Route path="order-success/:code" element={<OrderSuccessPage />} />
           <Route path="customer/orders" element={<CustomerOrdersPage />} />
           <Route path="wishlist" element={<WishlistPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
+            <Route path="customer/messages" element={<ChatInboxPage />} />
+          </Route>
         </Route>
 
         {/* 3. PHÂN HỆ QUẢN TRỊ VIÊN (ADMIN ROUTES - role: admin) */}
@@ -86,6 +90,7 @@ export const AppRoutes: React.FC = () => {
             <Route path="dashboard" element={<SellerDashboardPage />} />
             <Route path="products" element={<SellerProductsPage />} />
             <Route path="orders" element={<SellerOrdersPage />} />
+            <Route path="messages" element={<ChatInboxPage />} />
             <Route path="analytics" element={<SellerAnalyticsPage />} />
             <Route path="*" element={<Navigate to="/seller/dashboard" replace />} />
           </Route>

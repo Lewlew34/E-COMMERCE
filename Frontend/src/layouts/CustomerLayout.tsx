@@ -16,13 +16,15 @@ import {
   ChevronDown,
   Heart,
   Package,
-  Store
+  Store,
+  MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { AIChatWidget } from '../components/common/AIChatWidget';
 import { TawkToChat } from '../components/common/TawkToChat';
+import { ChatNotificationLink } from '../modules/chat/components/ChatNotificationLink';
 
 export const CustomerLayout: React.FC = () => {
   const { user, logout, isAdmin, isSeller } = useAuth();
@@ -131,6 +133,10 @@ export const CustomerLayout: React.FC = () => {
               <span className="hidden xl:inline text-xs font-medium text-slate-600">Yêu thích</span>
             </Link>
 
+            {user && !isSeller && !isAdmin && (
+              <ChatNotificationLink isSeller={false} />
+            )}
+
             {/* Giỏ hàng */}
             <Link
               to="/cart"
@@ -201,6 +207,16 @@ export const CustomerLayout: React.FC = () => {
                       <Package className="w-4 h-4 text-blue-600" />
                       <span>Đơn hàng của tôi</span>
                     </Link>
+                    {!isSeller && !isAdmin && (
+                      <Link
+                        to="/customer/messages"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
+                      >
+                        <MessageCircle className="w-4 h-4 text-blue-600" />
+                        <span>Liên hệ shop</span>
+                      </Link>
+                    )}
                     <Link
                       to="/wishlist"
                       onClick={() => setShowUserMenu(false)}
@@ -329,5 +345,6 @@ export const CustomerLayout: React.FC = () => {
       <AIChatWidget />
       <TawkToChat />
     </div>
+
   );
 };
