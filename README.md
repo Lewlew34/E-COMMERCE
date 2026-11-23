@@ -103,6 +103,10 @@ E-COMMERCE/
 
 ## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu (`techecommercedb`)
 
+## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu (`techecommercedb`)
+
+Database gồm các bảng nghiệp vụ chính; các migration Seller và Chat thêm bảng trạng thái đơn Seller, hội thoại và tin nhắn:
+
 | STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
 | :---: | :--- | :--- |
 | 1 | `users` | Tài khoản khách hàng, người bán (`staff`/`seller`) và quản trị viên (`admin`) |
@@ -114,13 +118,15 @@ E-COMMERCE/
 | 7 | `carts` | Giỏ hàng người dùng |
 | 8 | `cart_items` | Chi tiết món hàng trong giỏ |
 | 9 | `orders` | Đơn hàng, mã đơn, tổng tiền, phí ship, trạng thái đơn & thanh toán |
-| 10 | `order_items` | Chi tiết đơn hàng gắn `seller_id` |
-| 11 | `payments` | Giao dịch thanh toán (COD, QR, Thẻ) |
-| 12 | `flash_sales` | Chiến dịch giờ vàng công nghệ |
-| 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale |
-| 14 | `wishlists` | Danh sách sản phẩm yêu thích |
-| 15 | `inventory_logs` | Lịch sử biến động kho |
-| 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng shop |
+| 10 | `order_items` | Chi tiết đơn hàng gắn `seller_id`, snapshot cấu hình sản phẩm |
+| 11 | `payments` | Giao dịch thanh toán (COD, QR, Thẻ tín dụng) |
+| 12 | `flash_sales` | Chiến dịch giờ vàng công nghệ (Khung giờ bắt đầu & kết thúc) |
+| 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale (Giá sốc, giới hạn số suất, đã bán) |
+| 14 | `wishlists` | Danh sách sản phẩm được khách hàng lưu yêu thích |
+| 15 | `inventory_logs` | Lịch sử biến động kho (Tự động trừ tồn kho khi phát sinh đơn hàng) |
+| 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn nhiều shop |
+| 17 | `chat_conversations` | Hội thoại riêng cho mỗi cặp khách hàng và shop |
+| 18 | `chat_messages` | Tin nhắn trong hội thoại, chỉ khách và shop tham gia được xem |
 
 ---
 
@@ -134,17 +140,12 @@ E-COMMERCE/
 
 1. **Khởi động XAMPP:** Mở XAMPP Control Panel, bấm **Start** cả **Apache** và **MySQL**.
 2. **Cơ sở dữ liệu:**
-   - Mở phpMyAdmin (`http://localhost/phpmyadmin`), tạo/chọn database `techecommercedb` và import file CSDL đầy đủ của dự án.
+   - Mở phpMyAdmin (`http://localhost/phpmyadmin`), chọn database `techecommercedb`, import file CSDL đầy đủ hoặc chạy các file migration trong `Backend/migrations/`.
 3. **Tạo tài khoản Admin (nếu DB chưa có):**
    ```powershell
    C:\xampp\php\php.exe Backend\scripts\create_admin.php admin@example.com "Quan tri vien"
    ```
-   *(Nhập mật khẩu tối thiểu 12 ký tự tại dấu nhắc CLI; hoặc dùng `/register` trên web rồi chạy `UPDATE users SET role = 'admin', status = 'active' WHERE email = '...'` trong phpMyAdmin).*
 4. **Cấu hình file `.env` tại thư mục gốc `E-COMMERCE/`:**
-   - Sao chép từ `.env.example` nếu chưa có:
-     ```powershell
-     copy .env.example .env
-     ```
    - Điền cấu hình DB, `VITE_API_URL=http://localhost/TechMart/Backend/api`, cùng `GEMINI_API_KEY` / `GEMINI_MODEL` (nếu dùng trợ lý **LHKTech AI**) và `VITE_TAWK_PROPERTY_ID` / `VITE_TAWK_WIDGET_ID` (nếu dùng live chat Tawk.to).
 
 ### Bước 2: Kết nối Backend với Apache XAMPP
@@ -156,6 +157,8 @@ mklink /J "C:\xampp\htdocs\TechMart" "C:\Users\Asus\Documents\hoc\E-COMMERCE"
 Kiểm tra API tại `http://localhost/TechMart/Backend/api/common/products.php`.
 
 ### Bước 3: Khởi chạy Giao diện Frontend
+
+- Khách hàng có thể vào **Tin nhắn** trên thanh điều hướng hoặc chọn **Liên hệ shop** ở trang sản phẩm; Seller xem và trả lời khách trong mục **Tin nhắn khách hàng** ở Seller Center. Có thể gửi ảnh JPEG/PNG/WebP/GIF tối đa 5 MB, chia sẻ sản phẩm/đơn liên quan, trả lời hoặc xóa tin nhắn.
 
 ```powershell
 cd Frontend

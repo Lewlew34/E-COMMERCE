@@ -142,6 +142,8 @@ export const catalogApi = {
         category_id: number;
         category_name: string;
         category_slug: string;
+        seller_id: number | null;
+        shop_name: string | null;
         variants: Array<{
           id: number;
           productId: number;
@@ -158,6 +160,8 @@ export const catalogApi = {
       const data = await apiClient<DetailRaw>(`common/product_detail.php?${query}`);
       return {
         id: Number(data.id),
+        sellerId: data.seller_id == null ? null : Number(data.seller_id),
+        shopName: data.shop_name,
         name: data.name,
         slug: data.slug,
         brandId: Number(data.brand_id),
