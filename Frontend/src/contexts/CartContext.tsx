@@ -25,18 +25,45 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [selectedVariantIds, setSelectedVariantIds] = useState<number[]>([]);
   const { showToast } = useToast();
 
+  // Lấy key giỏ hàng độc lập theo tài khoản hiện tại (giống Shopee)
+  const getCartStorageKey = () => {
+    const currentUserStr =
+      localStorage.getItem('currentUser') ||
+      localStorage.getItem('user') ||
+      localStorage.getItem('auth_user') ||
+      localStorage.getItem('loggedUser') ||
+      'default_user';
+    return `cart_${currentUserStr}`;
+  };
+
+  // Đồng bộ qua localStorage riêng của user
   useEffect(() => {
-    const initialItems = cartService.getItems();
-    setCart(initialItems);
-    // Default select all items
-    setSelectedVariantIds(initialItems.map(i => i.variantId));
+    try {
+      const storageKey = getCartStorageKey();
+      const savedCart = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      setCart(savedCart);
+      setSelectedVariantIds(savedCart.map((i: CartItem) => i.variantId));
+    } catch {
+      setCart([]);
+      setSelectedVariantIds([]);
+    }
   }, []);
 
+  const saveAndSyncCart = (updatedCart: CartItem[]) => {
+    setCart(updatedCart);
+    try {
+      const storageKey = getCartStorageKey();
+      localStorage.setItem(storageKey, JSON.stringify(updatedCart));
+    } catch (error) {
+      console.error('Lỗi lưu giỏ hàng:', error);
+    }
+  };
+
   const addToCart = (variantId: number, quantity: number = 1) => {
+    // Tận dụng cartService để thêm sản phẩm chuẩn xác theo logic gốc của dự án
     const updated = cartService.addItem(variantId, quantity);
-    setCart(updated);
+    saveAndSyncCart(updated);
     
-    // Automatically select the added item
     if (!selectedVariantIds.includes(variantId)) {
       setSelectedVariantIds(prev => [...prev, variantId]);
     }
@@ -49,13 +76,13 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const updateQuantity = (variantId: number, quantity: number) => {
     const updated = cartService.updateQuantity(variantId, quantity);
-    setCart(updated);
+    saveAndSyncCart(updated);
   };
 
   const removeFromCart = (variantId: number) => {
     const itemToRemove = cart.find(i => i.variantId === variantId);
     const updated = cartService.removeItem(variantId);
-    setCart(updated);
+    saveAndSyncCart(updated);
     setSelectedVariantIds(prev => prev.filter(id => id !== variantId));
     if (itemToRemove) {
       showToast(`Đã xóa sản phẩm khỏi giỏ hàng`, 'info');
@@ -64,7 +91,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const clearCart = () => {
     cartService.clearCart();
-    setCart([]);
+    saveAndSyncCart([]);
     setSelectedVariantIds([]);
   };
 

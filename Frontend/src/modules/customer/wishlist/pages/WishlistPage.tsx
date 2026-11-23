@@ -1,14 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Trash2, ArrowRight, ArrowLeft } from 'lucide-react';
-import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useCart } from '../../../../contexts/CartContext';
 import { productService } from '../../../../services/storageService';
 import { formatCurrencyVN } from '../../../../utils/format';
 
 export const WishlistPage: React.FC = () => {
-  const { wishlistIds, toggleWishlist } = useWishlist();
+  const [wishlistIds, setWishlistIds] = useState<(string | number)[]>([]);
   const { addToCart } = useCart();
+
+  // Hàm lấy key Wishlist độc lập theo tài khoản hiện tại (giống Shopee)
+  const getWishlistStorageKey = () => {
+    const currentUserStr =
+      localStorage.getItem('currentUser') ||
+      localStorage.getItem('user') ||
+      localStorage.getItem('auth_user') ||
+      localStorage.getItem('loggedUser') ||
+      'default_user';
+    return `wishlist_${currentUserStr}`;
+  };
+
+  // Đọc danh sách yêu thích riêng của user khi vào trang
+  useEffect(() => {
+    try {
+      const savedWishlist = JSON.parse(localStorage.getItem(getWishlistStorageKey()) || '[]');
+      setWishlistIds(savedWishlist);
+    } catch (error) {
+      console.error('Lỗi đọc wishlist:', error);
+      setWishlistIds([]);
+    }
+  }, []);
+
+  // Hàm bật/tắt yêu thích và lưu vào kho riêng của user hiện tại
+  const toggleWishlist = (productId: string | number) => {
+    let updated: (string | number)[];
+    if (wishlistIds.includes(productId)) {
+      updated = wishlistIds.filter(id => id !== productId);
+    } else {
+      updated = [...wishlistIds, productId];
+    }
+    setWishlistIds(updated);
+    try {
+      localStorage.setItem(getWishlistStorageKey(), JSON.stringify(updated));
+    } catch (error) {
+      console.error('Lỗi lưu wishlist:', error);
+    }
+  };
 
   const allProducts = productService.getAll();
   const favoritedProducts = allProducts.filter(p => wishlistIds.includes(p.id));

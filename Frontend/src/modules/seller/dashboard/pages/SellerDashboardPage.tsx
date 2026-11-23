@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Clock,
+  CreditCard,
   Package,
   PlusCircle,
   Truck
@@ -12,6 +13,8 @@ import { sellerApiService, type SellerMetrics } from '../../../../services/stora
 import type { Order } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
+
+const SELLER_TRANSACTIONS_URL = 'http://localhost/TechMart/Backend/api/seller/transactions.php';
 
 export const SellerDashboardPage: React.FC = () => {
   const [metrics, setMetrics] = useState<SellerMetrics | null>(null);
@@ -45,13 +48,23 @@ export const SellerDashboardPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Tổng Quan Tình Hình Gian Hàng</h1>
           <p className="text-xs text-slate-400 mt-1">Số liệu được tổng hợp trực tiếp từ database của gian hàng.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => navigate('/seller/products')}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
-        >
-          <PlusCircle className="w-4 h-4" /> Thêm sản phẩm
-        </button>
+        <div className="flex items-center gap-2.5 self-start sm:self-auto">
+          <a
+            href={SELLER_TRANSACTIONS_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-medium text-xs shadow-2xs transition-colors"
+          >
+            <CreditCard className="w-4 h-4 text-emerald-600" /> Lịch sử thanh toán
+          </a>
+          <button
+            type="button"
+            onClick={() => navigate('/seller/products')}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs shadow-xs transition-colors cursor-pointer"
+          >
+            <PlusCircle className="w-4 h-4" /> Thêm sản phẩm
+          </button>
+        </div>
       </div>
 
       {loading ? (

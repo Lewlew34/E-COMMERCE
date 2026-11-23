@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Trash2, 
@@ -10,22 +10,100 @@ import {
   ArrowLeft,
   Truck
 } from 'lucide-react';
-import { useCart } from '../../../../contexts/CartContext';
 import { formatCurrencyVN } from '../../../../utils/format';
 
+interface CartItem {
+  variantId: string | number;
+  quantity: number;
+  product: {
+    id: string | number;
+    name: string;
+  };
+  variant: {
+    price: number;
+    image: string;
+    stockQuantity: number;
+    attributes: Record<string, string>;
+  };
+}
+
 export const CartPage: React.FC = () => {
-  const { 
-    cart, 
-    updateQuantity, 
-    removeFromCart, 
-    clearCart, 
-    selectedVariantIds, 
-    toggleSelectItem, 
-    selectAllItems, 
-    selectedSubtotal, 
-    selectedItems 
-  } = useCart();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [selectedVariantIds, setSelectedVariantIds] = useState<(string | number)[]>([]);
   const navigate = useNavigate();
+
+  // Hàm lấy key giỏ hàng độc lập theo tài khoản hiện tại (giống Shopee)
+  const getCartStorageKey = () => {
+    const currentUserStr =
+      localStorage.getItem('currentUser') ||
+      localStorage.getItem('user') ||
+      localStorage.getItem('auth_user') ||
+      localStorage.getItem('loggedUser') ||
+      'default_user';
+    return `cart_${currentUserStr}`;
+  };
+
+  // Đọc giỏ hàng riêng của user khi vào trang
+  useEffect(() => {
+    try {
+      const savedCart = JSON.parse(localStorage.getItem(getCartStorageKey()) || '[]');
+      setCart(savedCart);
+      // Mặc định chọn tất cả sản phẩm khi load giỏ hàng
+      setSelectedVariantIds(savedCart.map((item: CartItem) => item.variantId));
+    } catch (error) {
+      console.error('Lỗi đọc giỏ hàng:', error);
+      setCart([]);
+    }
+  }, []);
+
+  // Lưu giỏ hàng riêng của user mỗi khi thay đổi
+  const saveCartToStorage = (updatedCart: CartItem[]) => {
+    setCart(updatedCart);
+    try {
+      localStorage.setItem(getCartStorageKey(), JSON.stringify(updatedCart));
+    } catch (error) {
+      console.error('Lỗi lưu giỏ hàng:', error);
+    }
+  };
+
+  const updateQuantity = (variantId: string | number, newQty: number) => {
+    if (newQty <= 0) {
+      removeFromCart(variantId);
+      return;
+    }
+    const updated = cart.map(item => 
+      item.variantId === variantId ? { ...item, quantity: newQty } : item
+    );
+    saveCartToStorage(updated);
+  };
+
+  const removeFromCart = (variantId: string | number) => {
+    const updated = cart.filter(item => item.variantId !== variantId);
+    saveCartToStorage(updated);
+    setSelectedVariantIds(prev => prev.filter(id => id !== variantId));
+  };
+
+  const clearCart = () => {
+    saveCartToStorage([]);
+    setSelectedVariantIds([]);
+  };
+
+  const toggleSelectItem = (variantId: string | number) => {
+    setSelectedVariantIds(prev => 
+      prev.includes(variantId) ? prev.filter(id => id !== variantId) : [...prev, variantId]
+    );
+  };
+
+  const selectAllItems = (checked: boolean) => {
+    if (checked) {
+      setSelectedVariantIds(cart.map(item => item.variantId));
+    } else {
+      setSelectedVariantIds([]);
+    }
+  };
+
+  const selectedItems = cart.filter(item => selectedVariantIds.includes(item.variantId));
+  const selectedSubtotal = selectedItems.reduce((sum, item) => sum + (item.variant.price * item.quantity), 0);
 
   const isAllSelected = cart.length > 0 && selectedVariantIds.length === cart.length;
   const shippingFee = selectedSubtotal >= 500000 || selectedSubtotal === 0 ? 0 : 30000;
@@ -95,7 +173,7 @@ export const CartPage: React.FC = () => {
           <div className="space-y-3">
             {cart.map((item) => {
               const isSelected = selectedVariantIds.includes(item.variantId);
-              const attrText = Object.entries(item.variant.attributes)
+              const attrText = Object.entries(item.variant.attributes || {})
                 .map(([k, v]) => `${k}: ${v}`)
                 .join(' • ');
 
@@ -229,7 +307,14 @@ export const CartPage: React.FC = () => {
             </div>
 
             <button
-              onClick={() => navigate('/checkout')}
+              onClick={() => {
+                if (selectedItems.length === 0) {
+                  alert('Vui lòng chọn ít nhất một sản phẩm để thanh toán!');
+                  return;
+                }
+                localStorage.setItem('checkoutItems', JSON.stringify(selectedItems));
+                navigate('/checkout');
+              }}
               disabled={selectedItems.length === 0}
               className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
