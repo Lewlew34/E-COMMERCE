@@ -115,7 +115,7 @@ export const CartPage: React.FC = () => {
                     />
 
                     <Link
-                      to={`/product/${item.product.id}`}
+                      to={`/product/${item.product.slug || item.product.id}`}
                       className="w-16 h-16 rounded-xl overflow-hidden bg-slate-50 border border-slate-200 shrink-0"
                     >
                       <img
@@ -127,7 +127,7 @@ export const CartPage: React.FC = () => {
 
                     <div className="min-w-0 flex-1">
                       <Link
-                        to={`/product/${item.product.id}`}
+                        to={`/product/${item.product.slug || item.product.id}`}
                         className="text-xs font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-1 block"
                       >
                         {item.product.name}

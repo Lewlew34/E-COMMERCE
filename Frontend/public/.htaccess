@@ -1,0 +1,27 @@
+# ==============================================================================
+# LHK Tech - Apache Configuration (.htaccess)
+# Xử lý SEO Friendly URL, SPA Routing và Dynamic Meta Injection cho Crawler Bots
+# ==============================================================================
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # 1. BẮT CRAWLER BOT (Facebook, Zalo, Twitter, LinkedIn, Googlebot, Telegram...)
+  # Khi bot truy cập link sản phẩm /product/:slug hoặc /product/:id,
+  # Chuyển hướng nội bộ sang file PHP render metadata SEO
+  RewriteCond %{HTTP_USER_AGENT} (facebookexternalhit|Facebot|Twitterbot|LinkedInBot|Pinterest|Slackbot|TelegramBot|WhatsApp|ZaloPlatform|Zalo|Googlebot|bingbot|Baiduspider) [NC,OR]
+  RewriteCond %{QUERY_STRING} bot=1 [NC]
+  RewriteRule ^product/([^/]+)/?$ /Backend/api/common/seo_render.php?slug=$1 [L,QSA]
+
+  # 2. XỬ LÝ SPA (Single Page Application) CHO NGƯỜI DÙNG THỰC
+  # Nếu không phải là file vật lý hoặc thư mục có sẵn, trả về index.html
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Cấu hình bảo mật và nén GZIP
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>

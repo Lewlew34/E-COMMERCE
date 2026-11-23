@@ -125,7 +125,9 @@ export const catalogApi = {
   },
 
   async getProductDetail(idOrSlug: number | string): Promise<Product | null> {
-    const query = typeof idOrSlug === 'number' ? `id=${idOrSlug}` : `slug=${encodeURIComponent(idOrSlug)}`;
+    const trimmed = String(idOrSlug).trim();
+    const isNumeric = typeof idOrSlug === 'number' || (/^\d+$/.test(trimmed) && !isNaN(Number(trimmed)));
+    const query = isNumeric ? `id=${trimmed}` : `slug=${encodeURIComponent(trimmed)}`;
     try {
       interface DetailRaw {
         id: number;

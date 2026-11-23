@@ -55,7 +55,8 @@ export const AppRoutes: React.FC = () => {
         {/* 2.1 Các trang công khai: Khách vãng lai xem và tìm kiếm sản phẩm thoải mái */}
         <Route index element={<CustomerHomePage />} />
         <Route path="catalog" element={<CatalogPage />} />
-        <Route path="product/:id" element={<ProductDetailPage />} />
+        <Route path="product/:slug" element={<ProductDetailPage />} />
+        <Route path="product/id/:id" element={<ProductDetailPage />} />
 
         {/* 2.2 Các trang bảo vệ: Bắt buộc đăng nhập tài khoản */}
         <Route element={<ProtectedRoute allowedRoles={['customer', 'staff', 'seller', 'admin']} />}>

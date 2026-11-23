@@ -23,9 +23,17 @@ import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAuthModal } from '../../../../contexts/AuthModalContext';
+import { usePageMeta } from '../../../../hooks/usePageMeta';
 import type { Product } from '../../../../types/ecommerce.types';
 
 export const CustomerHomePage: React.FC = () => {
+  usePageMeta({
+    title: 'LHK Tech - Sàn Thương Mại Điện Tử Đồ Công Nghệ Uy Tín',
+    description: 'Chuyên cung cấp Laptop gaming, MacBook, Điện thoại flagship, Màn hình đồ họa và Linh kiện PC chính hãng giá tốt nhất với dịch vụ bảo hành chu đáo.',
+    image: '/logo-lhk-tech.png',
+    type: 'website',
+  });
+
   const { user } = useAuth();
   const { openAuthModal } = useAuthModal();
   const { addToCart } = useCart();
@@ -290,7 +298,7 @@ export const CustomerHomePage: React.FC = () => {
                       </div>
                       <div className="text-[11px] text-slate-400 font-semibold uppercase">{p.brand?.name}</div>
                       <Link
-                        to={`/product/${p.id}`}
+                        to={`/product/${p.slug || p.id}`}
                         className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 hover:text-blue-600 block"
                       >
                         {p.name}
@@ -311,7 +319,7 @@ export const CustomerHomePage: React.FC = () => {
 
                       <div className="mt-3 flex items-center justify-between gap-2">
                         <Link
-                          to={`/product/${p.id}`}
+                          to={`/product/${p.slug || p.id}`}
                           className="flex-1 py-2 text-center rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs shadow-xs"
                         >
                           Săn ngay
@@ -377,7 +385,7 @@ export const CustomerHomePage: React.FC = () => {
 
                     <div className="text-[11px] text-blue-600 font-bold uppercase">{p.brand?.name}</div>
                     <Link
-                      to={`/product/${p.id}`}
+                      to={`/product/${p.slug || p.id}`}
                       className="text-xs font-bold text-slate-900 line-clamp-2 mt-0.5 group-hover:text-blue-600 transition-colors block"
                     >
                       {p.name}
@@ -415,7 +423,7 @@ export const CustomerHomePage: React.FC = () => {
                         <ShoppingCart className="w-4 h-4" />
                       </button>
                       <Link
-                        to={`/product/${p.id}`}
+                        to={`/product/${p.slug || p.id}`}
                         className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs transition-colors"
                       >
                         Chi tiết

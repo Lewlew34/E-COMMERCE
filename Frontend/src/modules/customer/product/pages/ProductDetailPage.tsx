@@ -24,9 +24,10 @@ import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useToast } from '../../../../contexts/ToastContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAuthModal } from '../../../../contexts/AuthModalContext';
+import { usePageMeta } from '../../../../hooks/usePageMeta';
 
 export const ProductDetailPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { slug, id } = useParams<{ slug?: string; id?: string }>();
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { isInWishlist, toggleWishlist } = useWishlist();
@@ -39,24 +40,46 @@ export const ProductDetailPage: React.FC = () => {
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImage, setActiveImage] = useState<string>('');
 
+  // Cập nhật động SEO Meta Tags, Canonical và Open Graph (Facebook/Zalo)
+  usePageMeta({
+    title: product ? `${product.name} - Giá tốt chính hãng` : 'Chi tiết sản phẩm công nghệ',
+    description: product 
+      ? (product.description ? product.description.replace(/<[^>]*>?/gm, '').slice(0, 160) : `Mua ${product.name} chính hãng giá ưu đãi nhất tại LHK Tech. Bảo hành chu đáo, giao hàng nhanh.`)
+      : 'Sản phẩm công nghệ cao cấp tại LHK Tech',
+    canonical: product?.slug ? `${window.location.origin}/product/${product.slug}` : undefined,
+    url: product?.slug ? `${window.location.origin}/product/${product.slug}` : window.location.href,
+    image: activeImage || product?.variants?.[0]?.image || '/logo-lhk-tech.png',
+    type: 'product',
+    price: selectedVariant?.price,
+    currency: 'VND',
+    availability: (selectedVariant?.stockQuantity ?? 0) > 0 ? 'in stock' : 'out of stock'
+  });
+
   useEffect(() => {
     window.scrollTo(0, 0);
-    const productId = Number(id);
-    let active = true;
+    const rawKey = (slug || id || '').trim();
+    if (!rawKey) return;
 
-    catalogApi.getProductDetail(productId).then(apiProduct => {
+    let active = true;
+    const isNumeric = /^\d+$/.test(rawKey);
+
+    catalogApi.getProductDetail(rawKey).then(apiProduct => {
       if (!active) return;
-      const foundProduct = apiProduct || productService.getById(productId) || productService.getAll()[0];
+      const foundProduct = apiProduct || (isNumeric ? productService.getById(Number(rawKey)) : productService.getBySlug(rawKey)) || productService.getAll()[0];
       if (foundProduct) {
         setProduct(foundProduct);
         if (foundProduct.variants && foundProduct.variants.length > 0) {
           setSelectedVariant(foundProduct.variants[0]);
           setActiveImage(foundProduct.variants[0].image);
         }
+        // Chuẩn hóa URL: Nếu vào bằng ID mà sản phẩm đã có slug, chuyển sang URL slug thân thiện
+        if (isNumeric && foundProduct.slug && foundProduct.slug !== rawKey) {
+          navigate(`/product/${foundProduct.slug}`, { replace: true });
+        }
       }
     }).catch(() => {
       if (!active) return;
-      const fallback = productService.getById(productId) || productService.getAll()[0];
+      const fallback = (isNumeric ? productService.getById(Number(rawKey)) : productService.getBySlug(rawKey)) || productService.getAll()[0];
       if (fallback) {
         setProduct(fallback);
         if (fallback.variants && fallback.variants.length > 0) {
@@ -67,7 +90,7 @@ export const ProductDetailPage: React.FC = () => {
     });
 
     return () => { active = false; };
-  }, [id]);
+  }, [slug, id, navigate]);
 
   if (!product || !selectedVariant) {
     return (
@@ -118,10 +141,26 @@ export const ProductDetailPage: React.FC = () => {
     toggleWishlist(product.id, product.name);
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    const shareUrl = product?.slug ? `${window.location.origin}/product/${product.slug}` : window.location.href;
+    const shareData = {
+      title: product?.name || 'Sản phẩm tại LHK Tech',
+      text: `Khám phá ${product?.name || 'sản phẩm công nghệ'} tại LHK Tech`,
+      url: shareUrl,
+    };
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch {
+        // Fallback sang clipboard nếu người dùng hủy
+      }
+    }
+
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('Đã sao chép liên kết sản phẩm!', 'info');
+      navigator.clipboard.writeText(shareUrl);
+      showToast('Đã sao chép liên kết sản phẩm thân thiện vào bộ nhớ tạm!', 'info');
     }
   };
 

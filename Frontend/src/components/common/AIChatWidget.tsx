@@ -505,7 +505,7 @@ const AIChatWidgetInner: React.FC<{ storageKey: string }> = ({ storageKey }) => 
                           return (
                             <Link
                               key={p.id}
-                              to={`/product/${p.id}`}
+                              to={`/product/${p.slug || p.id}`}
                               onClick={() => setIsOpen(false)}
                               className="p-2 rounded-xl bg-white border border-slate-200 hover:border-blue-500 hover:shadow-md transition-all flex items-center gap-2.5 group block text-left"
                             >

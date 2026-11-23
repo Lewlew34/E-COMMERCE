@@ -71,7 +71,7 @@ export const WishlistPage: React.FC = () => {
 
                   <div className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">{p.brand?.name}</div>
                   <Link
-                    to={`/product/${p.id}`}
+                    to={`/product/${p.slug || p.id}`}
                     className="text-xs font-bold text-slate-900 hover:text-blue-600 transition-colors line-clamp-2 mt-1 block"
                   >
                     {p.name}

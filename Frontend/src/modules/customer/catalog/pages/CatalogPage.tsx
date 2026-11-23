@@ -8,6 +8,7 @@ import { useCart } from '../../../../contexts/CartContext';
 import { useWishlist } from '../../../../contexts/WishlistContext';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { useAuthModal } from '../../../../contexts/AuthModalContext';
+import { usePageMeta } from '../../../../hooks/usePageMeta';
 
 const normalizeFilterValue = (value: string | undefined) =>
   value?.trim().toLocaleLowerCase() || '';
@@ -25,6 +26,13 @@ export const CatalogPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const queryParam = searchParams.get('q') || '';
   const categoryParam = searchParams.get('cat') || 'ALL';
+
+  usePageMeta({
+    title: queryParam ? `Tìm kiếm "${queryParam}"` : 'Danh Mục Sản Phẩm Công Nghệ Chính Hãng',
+    description: 'Khám phá hàng ngàn sản phẩm công nghệ cao cấp: Laptop Gaming, MacBook, Smartphone, Linh kiện PC và Phụ kiện chính hãng tại LHK Tech.',
+    image: '/logo-lhk-tech.png',
+    type: 'website',
+  });
 
   const [selectedBrandId, setSelectedBrandId] = useState<number | 'ALL'>('ALL');
   const [selectedCategorySlug, setSelectedCategorySlug] = useState<string>(categoryParam);
@@ -307,7 +315,7 @@ export const CatalogPage: React.FC = () => {
                       </div>
 
                       <Link
-                        to={`/product/${product.id}`}
+                        to={`/product/${product.slug || product.id}`}
                         className="text-xs font-bold text-slate-900 line-clamp-2 hover:text-blue-600 transition-colors mt-1 block"
                       >
                         {product.name}
@@ -334,7 +342,7 @@ export const CatalogPage: React.FC = () => {
 
                       <div className="flex items-center gap-1.5">
                         <Link
-                          to={`/product/${product.id}`}
+                          to={`/product/${product.slug || product.id}`}
                           className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
                           title="Xem chi tiết"
                         >

@@ -577,7 +577,7 @@ export const SellerProductsPage: React.FC = () => {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <Link
-                          to={`/product/${p.id}`}
+                          to={`/product/${p.slug || p.id}`}
                           className="p-1.5 hover:text-blue-600 rounded-lg hover:bg-blue-50 text-slate-400 transition-colors inline-flex items-center"
                           title="Xem trên sàn thương mại"
                         >
