@@ -9,7 +9,10 @@ import {
   ArrowLeft,
   Calendar,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  Trash2,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { customerOrderApi } from '../../../../api';
 import type { Order, OrderStatus } from '../../../../types/ecommerce.types';
@@ -17,6 +20,9 @@ import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
 
 const CANCELLED_CODES_STORAGE_KEY = 'cancelled_vnpay_order_codes';
+const CUSTOMER_ORDERS_API_BASE =
+  (import.meta as any)?.env?.VITE_API_URL ||
+  'http://localhost/TechMart/Backend/api/customer';
 
 type PaymentState = 'paid' | 'pending' | 'failed';
 
@@ -142,6 +148,26 @@ const removeCancelledCode = (code: string) => {
   }
 };
 
+const removeLocalOrderByTarget = (orderId: number, orderCode?: string) => {
+  const keys = getStorageKeysForCurrentUser();
+  keys.forEach((storageKey) => {
+    try {
+      const list = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      if (!Array.isArray(list)) return;
+      const filtered = list.filter((o: any, idx: number) => {
+        const itemId = Number(o?.id) || idx + 10000;
+        const itemCode = String(o?.orderCode || o?.order_code || o?.id || `LHK-${10000 + idx}`);
+        const matchId = itemId === orderId;
+        const matchCode = Boolean(orderCode) && itemCode === String(orderCode);
+        return !(matchId || matchCode);
+      });
+      localStorage.setItem(storageKey, JSON.stringify(filtered));
+    } catch {
+      // Bỏ qua nếu lỗi ghi local
+    }
+  });
+};
+
 const markLocalOrderCancelledByCode = (targetCode: string, responseCode: string): string | null => {
   const keys = getStorageKeysForCurrentUser();
   let matchedCode: string | null = null;
@@ -251,6 +277,9 @@ export const CustomerOrdersPage: React.FC = () => {
   const [orders, setOrders] = useState<DisplayOrder[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<string>('ALL');
   const [loading, setLoading] = useState<boolean>(true);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState<boolean>(false);
   const { showToast } = useToast();
 
   const fetchOrders = async (extraCancelledCode?: string | null): Promise<DisplayOrder[]> => {
@@ -405,10 +434,121 @@ export const CustomerOrdersPage: React.FC = () => {
     }
   };
 
+  const deleteSingleOrderRequest = async (order: DisplayOrder) => {
+    const orderId = Number(order.id);
+    const token = localStorage.getItem('token') || '';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json'
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(
+      `${CUSTOMER_ORDERS_API_BASE}/orders.php?action=delete&id=${encodeURIComponent(String(orderId))}`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ id: orderId, orderCode: order.orderCode })
+      }
+    );
+
+    if (res.ok) {
+      const json = await res.json().catch(() => null);
+      if (json && json.status && json.status !== 'success') {
+        throw new Error(json.message || 'Không thể xóa đơn hàng.');
+      }
+    } else if (res.status !== 404) {
+      const errJson = await res.json().catch(() => null);
+      throw new Error(errJson?.message || `Xóa đơn hàng thất bại (HTTP ${res.status})`);
+    }
+
+    removeLocalOrderByTarget(orderId, order.orderCode);
+    removeCancelledCode(String(order.orderCode));
+  };
+
+  const handleDeleteOrder = async (order: DisplayOrder) => {
+    const orderId = Number(order.id);
+    const confirmed = window.confirm(
+      `Xóa vĩnh viễn đơn hàng ${order.orderCode}? Thao tác này sẽ xóa khỏi danh sách đơn hàng của bạn.`
+    );
+    if (!confirmed) return;
+
+    setDeletingId(orderId);
+    try {
+      await deleteSingleOrderRequest(order);
+      setOrders(prev => prev.filter(item => Number(item.id) !== orderId && item.orderCode !== order.orderCode));
+      setSelectedIds(prev => prev.filter(id => id !== orderId));
+      showToast(`Đã xóa đơn hàng ${order.orderCode}.`, 'info');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Lỗi khi xóa đơn hàng.', 'error');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleToggleSelect = (orderId: number) => {
+    setSelectedIds(prev =>
+      prev.includes(orderId) ? prev.filter(id => id !== orderId) : [...prev, orderId]
+    );
+  };
+
   const filteredOrders = orders.filter(o => {
     if (selectedFilter === 'ALL') return true;
     return o.orderStatus === selectedFilter;
   });
+
+  const allFilteredSelected =
+    filteredOrders.length > 0 &&
+    filteredOrders.every(o => selectedIds.includes(Number(o.id)));
+
+  const handleToggleSelectAllFiltered = () => {
+    const filteredIds = filteredOrders.map(o => Number(o.id));
+    if (allFilteredSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const targets = orders.filter(o => selectedIds.includes(Number(o.id)));
+    if (targets.length === 0 || bulkDeleting) return;
+
+    const confirmed = window.confirm(
+      `Xóa vĩnh viễn ${targets.length} đơn hàng đã chọn?`
+    );
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    const deletedIds: number[] = [];
+    const failedCodes: string[] = [];
+
+    for (const order of targets) {
+      try {
+        await deleteSingleOrderRequest(order);
+        deletedIds.push(Number(order.id));
+      } catch {
+        failedCodes.push(String(order.orderCode));
+      }
+    }
+
+    if (deletedIds.length > 0) {
+      setOrders(prev => prev.filter(item => !deletedIds.includes(Number(item.id))));
+      setSelectedIds(prev => prev.filter(id => !deletedIds.includes(id)));
+    }
+
+    setBulkDeleting(false);
+
+    if (failedCodes.length === 0) {
+      showToast(`Đã xóa ${deletedIds.length} đơn hàng.`, 'info');
+    } else {
+      showToast(
+        `Đã xóa ${deletedIds.length} đơn, lỗi ở mã: ${failedCodes.join(', ')}.`,
+        'error'
+      );
+    }
+  };
 
   const getPaymentBadge = (paymentStatus?: string) => {
     const normalized = String(paymentStatus || 'pending').toLowerCase();
@@ -471,7 +611,7 @@ export const CustomerOrdersPage: React.FC = () => {
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Link to="/" className="p-2 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors">
             <ArrowLeft className="w-4 h-4 text-slate-600" />
@@ -483,6 +623,39 @@ export const CustomerOrdersPage: React.FC = () => {
             <p className="text-xs text-slate-500">Theo dõi tiến trình vận chuyển và lịch sử mua sắm thiết bị</p>
           </div>
         </div>
+
+        {filteredOrders.length > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleToggleSelectAllFiltered}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 cursor-pointer"
+            >
+              {allFilteredSelected ? (
+                <CheckSquare className="w-4 h-4 text-blue-600" />
+              ) : (
+                <Square className="w-4 h-4 text-slate-400" />
+              )}
+              <span>{allFilteredSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</span>
+            </button>
+
+            {selectedIds.length > 0 && (
+              <button
+                type="button"
+                disabled={bulkDeleting}
+                onClick={handleBulkDelete}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white text-xs font-bold shadow-xs cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  {bulkDeleting
+                    ? 'Đang xóa...'
+                    : `Xóa đã chọn (${selectedIds.length})`}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Status Filter Tabs */}
@@ -527,71 +700,97 @@ export const CustomerOrdersPage: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map(order => (
-            <div key={order.id} className="bg-white rounded-3xl border border-slate-200/90 p-6 space-y-4 shadow-xs">
-              {/* Order Meta Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 text-xs">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono font-bold text-blue-600">{order.orderCode}</span>
-                  <span className="text-slate-400 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {new Date(order.createdAt).toLocaleDateString('vi-VN')}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {getPaymentBadge(order.paymentStatus)}
-                  {getStatusBadge(order.orderStatus)}
-                </div>
-              </div>
+          {filteredOrders.map(order => {
+            const orderNumId = Number(order.id);
+            const isChecked = selectedIds.includes(orderNumId);
 
-              {/* Items in order */}
-              <div className="space-y-3">
-                {order.items.map((item, idx) => (
-                  <div key={item.id || idx} className="flex items-center justify-between gap-4 text-xs">
-                    <div className="flex items-center gap-3">
-                      {item.image && (
-                        <img
-                          src={item.image}
-                          alt={item.productNameSnapshot}
-                          className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                        />
-                      )}
-                      <div>
-                        <div className="font-bold text-slate-900 line-clamp-1">{item.productNameSnapshot}</div>
-                        <div className="text-[11px] text-slate-400">
-                          {Object.values(item.variantAttributesSnapshot || {}).join(' • ')} x {item.quantity}
+            return (
+              <div
+                key={order.id}
+                className={`bg-white rounded-3xl border p-6 space-y-4 shadow-xs transition-colors ${
+                  isChecked ? 'border-red-300 bg-red-50/10' : 'border-slate-200/90'
+                }`}
+              >
+                {/* Order Meta Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 text-xs">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => handleToggleSelect(orderNumId)}
+                      aria-label={`Chọn đơn ${order.orderCode}`}
+                      className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer"
+                    />
+                    <span className="font-mono font-bold text-blue-600">{order.orderCode}</span>
+                    <span className="text-slate-400 flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {new Date(order.createdAt).toLocaleDateString('vi-VN')}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getPaymentBadge(order.paymentStatus)}
+                    {getStatusBadge(order.orderStatus)}
+                  </div>
+                </div>
+
+                {/* Items in order */}
+                <div className="space-y-3">
+                  {order.items.map((item, idx) => (
+                    <div key={item.id || idx} className="flex items-center justify-between gap-4 text-xs">
+                      <div className="flex items-center gap-3">
+                        {item.image && (
+                          <img
+                            src={item.image}
+                            alt={item.productNameSnapshot}
+                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                          />
+                        )}
+                        <div>
+                          <div className="font-bold text-slate-900 line-clamp-1">{item.productNameSnapshot}</div>
+                          <div className="text-[11px] text-slate-400">
+                            {Object.values(item.variantAttributesSnapshot || {}).join(' • ')} x {item.quantity}
+                          </div>
                         </div>
                       </div>
+                      <div className="font-bold text-slate-800">{formatCurrencyVN(item.totalPrice)}</div>
                     </div>
-                    <div className="font-bold text-slate-800">{formatCurrencyVN(item.totalPrice)}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Delivery Address & Price Summary */}
-              <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-                <div className="text-slate-500 text-[11px] max-w-md">
-                  Giao đến: <strong className="text-slate-700">{order.shippingAddressSnapshot?.recipientName}</strong> - {order.shippingAddressSnapshot?.addressLine}, {order.shippingAddressSnapshot?.city}
+                  ))}
                 </div>
 
-                <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                  <div>
-                    <span className="text-slate-400 text-[11px]">Tổng đơn: </span>
-                    <span className="text-sm font-black text-blue-600">{formatCurrencyVN(order.finalAmount)}</span>
+                {/* Delivery Address & Price Summary */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
+                  <div className="text-slate-500 text-[11px] max-w-md">
+                    Giao đến: <strong className="text-slate-700">{order.shippingAddressSnapshot?.recipientName}</strong> - {order.shippingAddressSnapshot?.addressLine}, {order.shippingAddressSnapshot?.city}
                   </div>
 
-                  {order.orderStatus === 'pending' && (
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+                    <div className="mr-1">
+                      <span className="text-slate-400 text-[11px]">Tổng đơn: </span>
+                      <span className="text-sm font-black text-blue-600">{formatCurrencyVN(order.finalAmount)}</span>
+                    </div>
+
+                    {order.orderStatus === 'pending' && (
+                      <button
+                        onClick={() => handleCancelOrder(orderNumId)}
+                        className="px-3 py-1.5 rounded-lg border border-amber-200 text-amber-700 hover:bg-amber-50 text-[11px] font-bold cursor-pointer"
+                      >
+                        Hủy đơn
+                      </button>
+                    )}
+
                     <button
-                      onClick={() => handleCancelOrder(Number(order.id))}
-                      className="px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-bold cursor-pointer"
+                      disabled={deletingId === orderNumId || bulkDeleting}
+                      onClick={() => handleDeleteOrder(order)}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 text-[11px] font-bold cursor-pointer"
                     >
-                      Hủy đơn
+                      <Trash2 className="w-3 h-3" />
+                      <span>{deletingId === orderNumId ? 'Đang xóa...' : 'Xóa'}</span>
                     </button>
-                  )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

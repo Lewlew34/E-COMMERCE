@@ -112,6 +112,76 @@ function resolveVariantId(item: any, fallbackCart: any[], index: number): number
     return undefined;
 }
 
+const cardStyle: React.CSSProperties = {
+    background: '#ffffff',
+    padding: '24px',
+    borderRadius: '16px',
+    border: '1px solid #e5e7eb',
+    boxShadow: '0 4px 20px rgba(15, 23, 42, 0.04)'
+};
+
+const cardTitleStyle: React.CSSProperties = {
+    margin: '0 0 18px 0',
+    fontSize: '17px',
+    fontWeight: 700,
+    color: '#0f172a',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px'
+};
+
+const labelStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#334155'
+};
+
+const inputStyle: React.CSSProperties = {
+    width: '100%',
+    height: '44px',
+    padding: '0 14px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: 400,
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
+    boxSizing: 'border-box',
+    outline: 'none',
+    transition: 'border-color 0.15s ease, background-color 0.15s ease'
+};
+
+const selectStyle: React.CSSProperties = {
+    width: '100%',
+    height: '44px',
+    padding: '0 12px',
+    border: '1px solid #cbd5e1',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#0f172a',
+    backgroundColor: '#f8fafc',
+    boxSizing: 'border-box',
+    outline: 'none',
+    cursor: 'pointer'
+};
+
+const getPaymentCardStyle = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    padding: '14px 16px',
+    border: active ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+    backgroundColor: active ? '#eff6ff' : '#ffffff',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease'
+});
+
 export function CheckoutPage() {
     const navigate = useNavigate();
     const paypalContainerRef = useRef<HTMLDivElement | null>(null);
@@ -121,13 +191,14 @@ export function CheckoutPage() {
     const [loading, setLoading] = useState(false);
     const [verifyingPaypal, setVerifyingPaypal] = useState(false);
     const [pendingPaypalOrder, setPendingPaypalOrder] = useState<CreatedOrderContext | null>(null);
+    const [focusedField, setFocusedField] = useState<string | null>(null);
 
     const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
         fullName: '',
         phone: '',
         city: 'TP. Hồ Chí Minh',
         district: 'Quận 1',
-        ward: 'Bến Nghé',
+        ward: '',
         address: ''
     });
 
@@ -163,7 +234,7 @@ export function CheckoutPage() {
                     phone: digitsOnlyPhone,
                     city: resolvedCity,
                     district: resolvedDistrict,
-                    ward: userData.ward || 'Bến Nghé',
+                    ward: userData.ward || '',
                     address: userData.address || userData.shippingAddress || userData.street || ''
                 }));
             }
@@ -251,6 +322,13 @@ export function CheckoutPage() {
             const sellerOrders = JSON.parse(localStorage.getItem(sellerOrdersKey) || '[]');
             sellerOrders.unshift(orderRecord);
             localStorage.setItem(sellerOrdersKey, JSON.stringify(sellerOrders));
+
+            if (orderRecord?.orderCode) {
+                localStorage.setItem(
+                    `vnpay_order_${String(orderRecord.orderCode).trim()}`,
+                    JSON.stringify(orderRecord)
+                );
+            }
         } catch (err) {
             console.error('Lỗi lưu đồng bộ đơn hàng:', err);
         }
@@ -295,7 +373,6 @@ export function CheckoutPage() {
         }
     };
 
-    // Render nút PayPal JS SDK khi có VITE_PAYPAL_CLIENT_ID và đã tạo đơn chờ thanh toán
     useEffect(() => {
         if (!pendingPaypalOrder || !PAYPAL_CLIENT_ID || !paypalContainerRef.current) return;
 
@@ -432,13 +509,20 @@ export function CheckoutPage() {
                         ? 'VNPay QR Sandbox'
                         : 'PayPal Sandbox';
 
+            const fullAddress = [
+                shippingInfo.address.trim(),
+                shippingInfo.ward.trim(),
+                shippingInfo.district.trim(),
+                shippingInfo.city.trim()
+            ].filter(Boolean).join(', ');
+
             const orderData = {
                 id: dbOrder.id ?? orderCode,
                 orderCode,
                 items: checkoutItems,
                 shippingInfo: {
                     ...shippingInfo,
-                    fullAddress: `${shippingInfo.address}, ${shippingInfo.ward}, ${shippingInfo.district}, ${shippingInfo.city}`
+                    fullAddress
                 },
                 amount: finalAmount,
                 totalAmount: finalAmount,
@@ -498,241 +582,431 @@ export function CheckoutPage() {
     };
 
     const districtOptions = LOCATION_DATA[shippingInfo.city] || [];
+    const isSubmitDisabled = loading || verifyingPaypal || checkoutItems.length === 0;
+
+    const getDynamicInputStyle = (fieldKey: string): React.CSSProperties => ({
+        ...inputStyle,
+        borderColor: focusedField === fieldKey ? '#2563eb' : '#cbd5e1',
+        backgroundColor: focusedField === fieldKey ? '#ffffff' : '#f8fafc',
+        boxShadow: focusedField === fieldKey ? '0 0 0 3px rgba(37, 99, 235, 0.12)' : 'none'
+    });
+
+    const getDynamicSelectStyle = (fieldKey: string): React.CSSProperties => ({
+        ...selectStyle,
+        borderColor: focusedField === fieldKey ? '#2563eb' : '#cbd5e1',
+        backgroundColor: focusedField === fieldKey ? '#ffffff' : '#f8fafc',
+        boxShadow: focusedField === fieldKey ? '0 0 0 3px rgba(37, 99, 235, 0.12)' : 'none'
+    });
 
     return (
-        <div style={{ maxWidth: '1100px', margin: '30px auto', padding: '0 15px', fontFamily: 'Arial, sans-serif' }}>
-            <h2 style={{ color: '#0d6efd', marginBottom: '25px', paddingBottom: '10px', borderBottom: '2px solid #0d6efd' }}>
-                Thanh Toán Đơn Hàng
-            </h2>
-
-            <form onSubmit={handleOrderSubmit} style={{ display: 'flex', gap: '25px', flexWrap: 'wrap' }}>
-                <div style={{ flex: '1', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    <div style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                        <h4 style={{ marginBottom: '15px', fontSize: '18px', color: '#333' }}>📍 Địa Chỉ Nhận Hàng</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-                                Họ và tên
-                                <input
-                                    type="text"
-                                    value={shippingInfo.fullName}
-                                    onChange={e => setShippingInfo({ ...shippingInfo, fullName: e.target.value })}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </label>
-
-                            <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-                                Số điện thoại
-                                <input
-                                    type="tel"
-                                    inputMode="numeric"
-                                    pattern="[0-9]*"
-                                    maxLength={11}
-                                    placeholder="Ví dụ: 0901234567"
-                                    value={shippingInfo.phone}
-                                    onChange={handlePhoneChange}
-                                    required
-                                    style={inputStyle}
-                                />
-                            </label>
-
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', flex: 1 }}>
-                                    Tỉnh / Thành phố
-                                    <select
-                                        value={shippingInfo.city}
-                                        onChange={handleCityChange}
-                                        required
-                                        style={selectStyle}
-                                    >
-                                        {CITY_LIST.map(cityName => (
-                                            <option key={cityName} value={cityName}>
-                                                {cityName}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-
-                                <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333', flex: 1 }}>
-                                    Quận / Huyện
-                                    <select
-                                        value={shippingInfo.district}
-                                        onChange={handleDistrictChange}
-                                        required
-                                        style={selectStyle}
-                                    >
-                                        {districtOptions.map(districtName => (
-                                            <option key={districtName} value={districtName}>
-                                                {districtName}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </label>
-                            </div>
-
-                            <label style={{ fontSize: '14px', fontWeight: 'bold', color: '#333' }}>
-                                Địa chỉ cụ thể
-                                <input
-                                    type="text"
-                                    value={shippingInfo.address}
-                                    onChange={e => setShippingInfo({ ...shippingInfo, address: e.target.value })}
-                                    placeholder="Ví dụ: 123 Nguyễn Văn Cừ"
-                                    required
-                                    style={inputStyle}
-                                />
-                            </label>
-                        </div>
-                    </div>
-
-                    <div style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
-                        <h4 style={{ marginBottom: '15px', fontSize: '18px', color: '#333' }}>💳 Phương Thức Thanh Toán</h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                            <label style={paymentStyle}>
-                                <input
-                                    type="radio"
-                                    name="paymentMethod"
-                                    value="cod"
-                                    checked={paymentMethod === 'cod'}
-                                    onChange={() => {
-                                        setPaymentMethod('cod');
-                                        setPendingPaypalOrder(null);
-                                    }}
-                                />
-                                <div><strong>Thanh toán khi nhận hàng (COD)</strong></div>
-                            </label>
-                            <label style={paymentStyle}>
-                                <input
-                                    type="radio"
-                                    name="paymentMethod"
-                                    value="vnpay"
-                                    checked={paymentMethod === 'vnpay'}
-                                    onChange={() => {
-                                        setPaymentMethod('vnpay');
-                                        setPendingPaypalOrder(null);
-                                    }}
-                                />
-                                <div><strong>Thanh toán VNPay QR Sandbox</strong></div>
-                            </label>
-                            <label style={paymentStyle}>
-                                <input
-                                    type="radio"
-                                    name="paymentMethod"
-                                    value="paypal"
-                                    checked={paymentMethod === 'paypal'}
-                                    onChange={() => setPaymentMethod('paypal')}
-                                />
-                                <div><strong>Thanh toán Quốc tế PayPal Sandbox</strong></div>
-                            </label>
-                        </div>
-
-                        {pendingPaypalOrder && (
-                            <div style={{
-                                marginTop: '16px',
-                                padding: '16px',
-                                borderRadius: '8px',
-                                border: '1px solid #0070ba',
-                                backgroundColor: '#f0f7ff'
-                            }}>
-                                <div style={{ fontWeight: 'bold', color: '#003087', marginBottom: '6px' }}>
-                                    Đơn #{pendingPaypalOrder.orderCode} đã tạo — Hoàn tất thanh toán PayPal Sandbox
-                                </div>
-                                <div style={{ fontSize: '13px', color: '#333', marginBottom: '12px' }}>
-                                    Tổng tiền: <strong>{pendingPaypalOrder.finalAmount.toLocaleString('vi-VN')} đ</strong> (~${Math.max(1, Number((pendingPaypalOrder.finalAmount / 25000).toFixed(2))).toFixed(2)} USD). Giao dịch sẽ được xác thực trực tiếp ở backend qua <code>verify_paypal.php</code>.
-                                </div>
-
-                                {PAYPAL_CLIENT_ID ? (
-                                    <div ref={paypalContainerRef} />
-                                ) : (
-                                    <button
-                                        type="button"
-                                        disabled={verifyingPaypal}
-                                        onClick={() =>
-                                            verifyPaypalOnBackend(
-                                                `PAYPAL-SBX-${Date.now()}`,
-                                                pendingPaypalOrder
-                                            )
-                                        }
-                                        style={{
-                                            padding: '10px 16px',
-                                            backgroundColor: '#0070ba',
-                                            color: '#fff',
-                                            border: 'none',
-                                            borderRadius: '6px',
-                                            fontWeight: 'bold',
-                                            cursor: verifyingPaypal ? 'not-allowed' : 'pointer'
-                                        }}
-                                    >
-                                        {verifyingPaypal
-                                            ? 'Đang xác thực với Backend...'
-                                            : 'Xác nhận thanh toán PayPal Sandbox & Verify Backend'}
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div style={{ width: '380px', minWidth: '300px' }}>
-                    <div style={{ background: '#fff', padding: '24px', borderRadius: '8px', border: '1px solid #e0e0e0', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', position: 'sticky', top: '20px' }}>
-                        <h4 style={{ marginBottom: '15px', fontSize: '18px', color: '#333' }}>📦 Tóm Tắt Đơn Hàng</h4>
-                        <div style={{ maxHeight: '250px', overflowY: 'auto', marginBottom: '15px', paddingRight: '5px' }}>
-                            {checkoutItems.map((item, index) => (
-                                <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid #eee' }}>
-                                    <div>
-                                        <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#333' }}>{item.name}</div>
-                                        <div style={{ fontSize: '12px', color: '#666' }}>SL: {item.quantity}</div>
-                                    </div>
-                                    <div style={{ fontWeight: 'bold', color: '#dc3545', fontSize: '14px', whiteSpace: 'nowrap' }}>
-                                        {(item.price * item.quantity).toLocaleString('vi-VN')} đ
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div style={{ ...summaryStyle, marginBottom: '20px' }}>
-                            <strong style={{ fontSize: '16px', color: '#333' }}>Tổng thanh toán:</strong>
-                            <strong style={{ color: '#dc3545', fontSize: '20px' }}>
-                                {totalAmount.toLocaleString('vi-VN')} đ
-                            </strong>
-                        </div>
-
+        <div style={{
+            minHeight: '75vh',
+            background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+            padding: '32px 16px 56px',
+            fontFamily: 'Inter, system-ui, -apple-system, Arial, sans-serif'
+        }}>
+            <div style={{ maxWidth: '1120px', margin: '0 auto' }}>
+                <div style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '12px',
+                    marginBottom: '24px'
+                }}>
+                    <div>
                         <button
-                            type="submit"
-                            disabled={loading || verifyingPaypal || checkoutItems.length === 0}
+                            type="button"
+                            onClick={() => navigate(-1)}
                             style={{
-                                width: '100%', padding: '14px',
-                                background: loading || verifyingPaypal || checkoutItems.length === 0 ? '#ccc' : '#0d6efd',
-                                color: '#fff', border: 'none', borderRadius: '6px',
-                                fontWeight: 'bold', fontSize: '15px',
-                                cursor: loading || verifyingPaypal || checkoutItems.length === 0 ? 'not-allowed' : 'pointer',
-                                textTransform: 'uppercase'
+                                background: 'none',
+                                border: 'none',
+                                padding: 0,
+                                color: '#475569',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                marginBottom: '6px',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
                             }}
                         >
-                            {loading ? 'ĐANG XỬ LÝ...' : 'ĐẶT HÀNG NGAY'}
+                            ← Quay lại
                         </button>
+                        <h2 style={{
+                            margin: 0,
+                            fontSize: '24px',
+                            fontWeight: 800,
+                            color: '#0f172a',
+                            letterSpacing: '-0.02em'
+                        }}>
+                            Thanh Toán Đơn Hàng
+                        </h2>
+                    </div>
+
+                    <div style={{
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#2563eb',
+                        backgroundColor: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        padding: '6px 12px',
+                        borderRadius: '999px'
+                    }}>
+                        Bước 2/2 • Xác nhận & Thanh toán
                     </div>
                 </div>
-            </form>
+
+                <form onSubmit={handleOrderSubmit} style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '1.6', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                        <div style={cardStyle}>
+                            <h4 style={cardTitleStyle}>
+                                <span>📍</span>
+                                <span>Địa Chỉ Nhận Hàng</span>
+                            </h4>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                                    <label style={labelStyle}>
+                                        <span>Họ và tên <span style={{ color: '#ef4444' }}>*</span></span>
+                                        <input
+                                            type="text"
+                                            value={shippingInfo.fullName}
+                                            onFocus={() => setFocusedField('fullName')}
+                                            onBlur={() => setFocusedField(null)}
+                                            onChange={e => setShippingInfo({ ...shippingInfo, fullName: e.target.value })}
+                                            placeholder="Nhập họ tên người nhận"
+                                            required
+                                            style={getDynamicInputStyle('fullName')}
+                                        />
+                                    </label>
+
+                                    <label style={labelStyle}>
+                                        <span>Số điện thoại <span style={{ color: '#ef4444' }}>*</span></span>
+                                        <input
+                                            type="tel"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
+                                            maxLength={11}
+                                            placeholder="Ví dụ: 0901234567"
+                                            value={shippingInfo.phone}
+                                            onFocus={() => setFocusedField('phone')}
+                                            onBlur={() => setFocusedField(null)}
+                                            onChange={handlePhoneChange}
+                                            required
+                                            style={getDynamicInputStyle('phone')}
+                                        />
+                                    </label>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+                                    <label style={labelStyle}>
+                                        <span>Tỉnh / Thành phố <span style={{ color: '#ef4444' }}>*</span></span>
+                                        <select
+                                            value={shippingInfo.city}
+                                            onFocus={() => setFocusedField('city')}
+                                            onBlur={() => setFocusedField(null)}
+                                            onChange={handleCityChange}
+                                            required
+                                            style={getDynamicSelectStyle('city')}
+                                        >
+                                            {CITY_LIST.map(cityName => (
+                                                <option key={cityName} value={cityName}>
+                                                    {cityName}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+
+                                    <label style={labelStyle}>
+                                        <span>Quận / Huyện <span style={{ color: '#ef4444' }}>*</span></span>
+                                        <select
+                                            value={shippingInfo.district}
+                                            onFocus={() => setFocusedField('district')}
+                                            onBlur={() => setFocusedField(null)}
+                                            onChange={handleDistrictChange}
+                                            required
+                                            style={getDynamicSelectStyle('district')}
+                                        >
+                                            {districtOptions.map(districtName => (
+                                                <option key={districtName} value={districtName}>
+                                                    {districtName}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                </div>
+
+                                <label style={labelStyle}>
+                                    <span>Địa chỉ cụ thể <span style={{ color: '#ef4444' }}>*</span></span>
+                                    <input
+                                        type="text"
+                                        value={shippingInfo.address}
+                                        onFocus={() => setFocusedField('address')}
+                                        onBlur={() => setFocusedField(null)}
+                                        onChange={e => setShippingInfo({ ...shippingInfo, address: e.target.value })}
+                                        placeholder="Số nhà, tên đường, tòa nhà..."
+                                        required
+                                        style={getDynamicInputStyle('address')}
+                                    />
+                                </label>
+                            </div>
+                        </div>
+
+                        <div style={cardStyle}>
+                            <h4 style={cardTitleStyle}>
+                                <span>💳</span>
+                                <span>Phương Thức Thanh Toán</span>
+                            </h4>
+
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <label style={getPaymentCardStyle(paymentMethod === 'cod')}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input
+                                            type="radio"
+                                            name="paymentMethod"
+                                            value="cod"
+                                            checked={paymentMethod === 'cod'}
+                                            onChange={() => {
+                                                setPaymentMethod('cod');
+                                                setPendingPaypalOrder(null);
+                                            }}
+                                            style={{ accentColor: '#2563eb', width: '16px', height: '16px', cursor: 'pointer' }}
+                                        />
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
+                                                Thanh toán khi nhận hàng (COD)
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                                Kiểm tra thiết bị trước khi thanh toán tiền mặt cho shipper
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: '#059669',
+                                        backgroundColor: '#ecfdf5',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px'
+                                    }}>
+                                        Phổ biến
+                                    </span>
+                                </label>
+
+                                <label style={getPaymentCardStyle(paymentMethod === 'vnpay')}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input
+                                            type="radio"
+                                            name="paymentMethod"
+                                            value="vnpay"
+                                            checked={paymentMethod === 'vnpay'}
+                                            onChange={() => {
+                                                setPaymentMethod('vnpay');
+                                                setPendingPaypalOrder(null);
+                                            }}
+                                            style={{ accentColor: '#2563eb', width: '16px', height: '16px', cursor: 'pointer' }}
+                                        />
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
+                                                Thanh toán VNPay QR Sandbox
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                                Quét mã QR hoặc thẻ ngân hàng nội địa qua cổng VNPay
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: '#2563eb',
+                                        backgroundColor: '#dbeafe',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px'
+                                    }}>
+                                        QR / ATM
+                                    </span>
+                                </label>
+
+                                <label style={getPaymentCardStyle(paymentMethod === 'paypal')}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <input
+                                            type="radio"
+                                            name="paymentMethod"
+                                            value="paypal"
+                                            checked={paymentMethod === 'paypal'}
+                                            onChange={() => setPaymentMethod('paypal')}
+                                            style={{ accentColor: '#2563eb', width: '16px', height: '16px', cursor: 'pointer' }}
+                                        />
+                                        <div>
+                                            <div style={{ fontWeight: 700, fontSize: '14px', color: '#0f172a' }}>
+                                                Thanh toán Quốc tế PayPal Sandbox
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                                Thanh toán nhanh bằng tài khoản PayPal hoặc thẻ quốc tế
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 700,
+                                        color: '#0369a1',
+                                        backgroundColor: '#e0f2fe',
+                                        padding: '4px 8px',
+                                        borderRadius: '6px'
+                                    }}>
+                                        USD
+                                    </span>
+                                </label>
+                            </div>
+
+                            {pendingPaypalOrder && (
+                                <div style={{
+                                    marginTop: '16px',
+                                    padding: '16px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #93c5fd',
+                                    backgroundColor: '#f0f7ff'
+                                }}>
+                                    <div style={{ fontWeight: 700, color: '#1e3a8a', marginBottom: '6px', fontSize: '14px' }}>
+                                        Đơn #{pendingPaypalOrder.orderCode} đã tạo — Hoàn tất thanh toán PayPal Sandbox
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: '#334155', marginBottom: '12px', lineHeight: 1.5 }}>
+                                        Tổng tiền: <strong style={{ color: '#0f172a' }}>{pendingPaypalOrder.finalAmount.toLocaleString('vi-VN')} đ</strong> (~${Math.max(1, Number((pendingPaypalOrder.finalAmount / 25000).toFixed(2))).toFixed(2)} USD). Giao dịch sẽ được xác thực trực tiếp ở backend qua <code>verify_paypal.php</code>.
+                                    </div>
+
+                                    {PAYPAL_CLIENT_ID ? (
+                                        <div ref={paypalContainerRef} />
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            disabled={verifyingPaypal}
+                                            onClick={() =>
+                                                verifyPaypalOnBackend(
+                                                    `PAYPAL-SBX-${Date.now()}`,
+                                                    pendingPaypalOrder
+                                                )
+                                            }
+                                            style={{
+                                                padding: '10px 16px',
+                                                backgroundColor: '#0070ba',
+                                                color: '#fff',
+                                                border: 'none',
+                                                borderRadius: '8px',
+                                                fontWeight: 700,
+                                                fontSize: '13px',
+                                                cursor: verifyingPaypal ? 'not-allowed' : 'pointer'
+                                            }}
+                                        >
+                                            {verifyingPaypal
+                                                ? 'Đang xác thực với Backend...'
+                                                : 'Xác nhận thanh toán PayPal Sandbox & Verify Backend'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{ flex: '1', minWidth: '300px', maxWidth: '400px', width: '100%' }}>
+                        <div style={{ ...cardStyle, position: 'sticky', top: '20px' }}>
+                            <h4 style={cardTitleStyle}>
+                                <span>📦</span>
+                                <span>Tóm Tắt Đơn Hàng</span>
+                            </h4>
+
+                            <div style={{
+                                maxHeight: '260px',
+                                overflowY: 'auto',
+                                marginBottom: '16px',
+                                paddingRight: '4px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '12px'
+                            }}>
+                                {checkoutItems.map((item, index) => (
+                                    <div
+                                        key={index}
+                                        style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'flex-start',
+                                            gap: '12px',
+                                            paddingBottom: '12px',
+                                            borderBottom: '1px solid #f1f5f9'
+                                        }}
+                                    >
+                                        <div style={{ minWidth: 0 }}>
+                                            <div style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a', lineHeight: 1.35 }}>
+                                                {item.name}
+                                            </div>
+                                            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
+                                                SL: {item.quantity}
+                                            </div>
+                                        </div>
+                                        <div style={{ fontWeight: 700, color: '#0f172a', fontSize: '14px', whiteSpace: 'nowrap' }}>
+                                            {(item.price * item.quantity).toLocaleString('vi-VN')} đ
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{
+                                paddingTop: '12px',
+                                borderTop: '1px solid #e2e8f0',
+                                marginBottom: '20px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '10px'
+                            }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#64748b' }}>
+                                    <span>Tạm tính ({checkoutItems.reduce((s, i) => s + i.quantity, 0)} sản phẩm)</span>
+                                    <span>{totalAmount.toLocaleString('vi-VN')} đ</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: '6px' }}>
+                                    <strong style={{ fontSize: '15px', color: '#0f172a' }}>Tổng thanh toán:</strong>
+                                    <strong style={{ color: '#e11d48', fontSize: '21px', fontWeight: 800 }}>
+                                        {totalAmount.toLocaleString('vi-VN')} đ
+                                    </strong>
+                                </div>
+                            </div>
+
+                            <button
+                                type="submit"
+                                disabled={isSubmitDisabled}
+                                style={{
+                                    width: '100%',
+                                    height: '48px',
+                                    background: isSubmitDisabled
+                                        ? '#cbd5e1'
+                                        : 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                    color: '#ffffff',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    fontWeight: 700,
+                                    fontSize: '14px',
+                                    letterSpacing: '0.04em',
+                                    cursor: isSubmitDisabled ? 'not-allowed' : 'pointer',
+                                    textTransform: 'uppercase',
+                                    boxShadow: isSubmitDisabled ? 'none' : '0 8px 20px rgba(37, 99, 235, 0.25)'
+                                }}
+                            >
+                                {loading ? 'Đang xử lý...' : 'ĐẶT HÀNG NGAY'}
+                            </button>
+
+                            <div style={{
+                                marginTop: '12px',
+                                textAlign: 'center',
+                                fontSize: '12px',
+                                color: '#64748b'
+                            }}>
+                                🔒 Thông tin đơn hàng được bảo mật & đồng bộ trực tiếp
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 }
-
-const inputStyle: React.CSSProperties = {
-    display: 'block',
-    width: '100%',
-    padding: '10px',
-    marginTop: '6px',
-    borderRadius: '6px',
-    border: '1px solid #ccc',
-    boxSizing: 'border-box',
-    fontWeight: 'normal'
-};
-
-const selectStyle: React.CSSProperties = {
-    ...inputStyle,
-    backgroundColor: '#fff',
-    cursor: 'pointer'
-};
-
-const paymentStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f8f9fa', borderRadius: '6px', border: '1px solid #ddd', cursor: 'pointer' };
-const summaryStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' };
