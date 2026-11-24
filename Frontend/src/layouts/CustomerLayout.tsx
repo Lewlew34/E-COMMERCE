@@ -380,7 +380,7 @@ export const CustomerLayout: React.FC = () => {
             <ul className="space-y-2 text-xs">
               <li><a href="#" className="hover:text-white transition-colors">Giới thiệu nền tảng</a></li>
               <li><a href="#" className="hover:text-white transition-colors">Tuyển dụng nhân tài</a></li>
-              <li><a href="#" className="hover:text-white transition-colors">Hệ thống showroom liên kết</a></li>
+              <li><Link to="/showroom" className="hover:text-white transition-colors">Hệ thống showroom liên kết</Link></li>
               <li><a href="#" className="hover:text-white transition-colors">Chính sách bảo mật</a></li>
             </ul>
           </div>

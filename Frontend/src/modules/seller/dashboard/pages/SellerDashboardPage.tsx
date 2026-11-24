@@ -7,8 +7,11 @@ import {
   CreditCard,
   Package,
   PlusCircle,
-  Truck
+  Truck,
+  MapPin
 } from 'lucide-react';
+import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
+import { ShopLocationMap } from '../../../../components/map/ShopLocationMap';
 import { sellerApiService, type SellerMetrics } from '../../../../services/storageService';
 import type { Order } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
@@ -22,6 +25,36 @@ export const SellerDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
   const navigate = useNavigate();
+
+  const [showWarehousePicker, setShowWarehousePicker] = useState(false);
+  const [warehouseLocation, setWarehouseLocation] = useState<{
+    address: string;
+    lat: number;
+    lng: number;
+  }>(() => {
+    try {
+      const saved = localStorage.getItem('seller_warehouse_location');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      address: 'Kho vận & Showroom LHK Tech - Tân Bình, TP. Hồ Chí Minh',
+      lat: 10.8015,
+      lng: 106.6558
+    };
+  });
+
+  const handleUpdateWarehouse = (loc: LocationResult) => {
+    const updated = {
+      address: loc.fullAddress,
+      lat: loc.lat,
+      lng: loc.lng
+    };
+    setWarehouseLocation(updated);
+    try {
+      localStorage.setItem('seller_warehouse_location', JSON.stringify(updated));
+    } catch {}
+    showToast('Đã lưu vị trí kho / showroom của shop thành công!', 'success');
+  };
 
   useEffect(() => {
     Promise.all([sellerApiService.getMetrics(30), sellerApiService.getOrders()])
@@ -166,12 +199,56 @@ export const SellerDashboardPage: React.FC = () => {
               </div>
             )}
           </div>
+          {/* 4. Quản lý vị trí Kho Hàng / Showroom của Shop */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">Vị Trí Kho Hàng & Showroom Của Shop</h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Vị trí này dùng để định vị điểm xuất hàng và hiển thị showroom cho khách hàng.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowWarehousePicker(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs self-start sm:self-auto"
+              >
+                <MapPin className="w-3.5 h-3.5" />
+                <span>Cập nhật vị trí trên bản đồ</span>
+              </button>
+            </div>
+
+            <ShopLocationMap
+              shopName="Kho Hàng / Showroom Của Bạn"
+              address={warehouseLocation.address}
+              lat={warehouseLocation.lat}
+              lng={warehouseLocation.lng}
+              height="380px"
+              showCard={true}
+            />
+          </div>
         </>
       ) : (
         <div className="py-8 text-center text-xs text-red-500">
           Không tải được dữ liệu Seller.
         </div>
       )}
+
+      <LocationPickerModal
+        isOpen={showWarehousePicker}
+        onClose={() => setShowWarehousePicker(false)}
+        onSelectLocation={handleUpdateWarehouse}
+        initialAddress={warehouseLocation.address}
+        initialLat={warehouseLocation.lat}
+        initialLng={warehouseLocation.lng}
+        title="Chọn vị trí kho hàng / showroom của shop"
+      />
     </div>
   );
 };

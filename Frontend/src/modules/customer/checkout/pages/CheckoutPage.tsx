@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
 
 interface CheckoutItem {
     variantId?: number;
@@ -192,6 +193,8 @@ export function CheckoutPage() {
     const [verifyingPaypal, setVerifyingPaypal] = useState(false);
     const [pendingPaypalOrder, setPendingPaypalOrder] = useState<CreatedOrderContext | null>(null);
     const [focusedField, setFocusedField] = useState<string | null>(null);
+    const [showMapModal, setShowMapModal] = useState(false);
+    const [selectedMapLocation, setSelectedMapLocation] = useState<LocationResult | null>(null);
 
     const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
         fullName: '',
@@ -287,6 +290,47 @@ export function CheckoutPage() {
         setShippingInfo(prev => ({
             ...prev,
             district: e.target.value
+        }));
+    };
+
+    const handleMapLocationSelect = (loc: LocationResult) => {
+        setSelectedMapLocation(loc);
+
+        // Khớp thành phố trong danh sách hệ thống
+        let matchedCity = shippingInfo.city;
+        const lowerSearch = (loc.city + ' ' + loc.fullAddress).toLowerCase();
+        for (const cityName of CITY_LIST) {
+            const simpleName = cityName.toLowerCase().replace('tp.', '').trim();
+            if (lowerSearch.includes(simpleName)) {
+                matchedCity = cityName;
+                break;
+            }
+        }
+
+        // Khớp quận/huyện trong danh sách hệ thống
+        const availableDistricts = LOCATION_DATA[matchedCity] || [];
+        let matchedDistrict = availableDistricts[0] || shippingInfo.district;
+        const lowerDistrictSearch = (loc.district + ' ' + loc.fullAddress).toLowerCase();
+        for (const d of availableDistricts) {
+            const simpleD = d.toLowerCase().replace('quận', '').replace('huyện', '').replace('tp.', '').trim();
+            if (lowerDistrictSearch.includes(simpleD)) {
+                matchedDistrict = d;
+                break;
+            }
+        }
+
+        // Địa chỉ chi tiết (kèm tên đường, phường)
+        let streetAddress = loc.address;
+        if (loc.ward && !streetAddress.toLowerCase().includes(loc.ward.toLowerCase())) {
+            streetAddress = `${streetAddress}, ${loc.ward}`;
+        }
+
+        setShippingInfo(prev => ({
+            ...prev,
+            city: matchedCity,
+            district: matchedDistrict,
+            ward: loc.ward || prev.ward,
+            address: streetAddress || loc.fullAddress || prev.address
         }));
     };
 
@@ -661,10 +705,69 @@ export function CheckoutPage() {
                 <form onSubmit={handleOrderSubmit} style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                     <div style={{ flex: '1.6', minWidth: '320px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
                         <div style={cardStyle}>
-                            <h4 style={cardTitleStyle}>
-                                <span>📍</span>
-                                <span>Địa Chỉ Nhận Hàng</span>
-                            </h4>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                <h4 style={{ ...cardTitleStyle, marginBottom: 0 }}>
+                                    <span>📍</span>
+                                    <span>Địa Chỉ Nhận Hàng</span>
+                                </h4>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowMapModal(true)}
+                                    style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        padding: '7px 14px',
+                                        borderRadius: '10px',
+                                        backgroundColor: '#eff6ff',
+                                        border: '1px solid #bfdbfe',
+                                        color: '#1d4ed8',
+                                        fontSize: '12px',
+                                        fontWeight: 700,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease'
+                                    }}
+                                >
+                                    <span>🗺️ Chọn trên bản đồ</span>
+                                </button>
+                            </div>
+
+                            {selectedMapLocation && (
+                                <div style={{
+                                    marginBottom: '16px',
+                                    padding: '10px 14px',
+                                    backgroundColor: '#f0fdf4',
+                                    border: '1px solid #bbf7d0',
+                                    borderRadius: '10px',
+                                    fontSize: '12px',
+                                    color: '#166534',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: '8px'
+                                }}>
+                                    <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span style={{ fontWeight: 700 }}>✓ Đã định vị bản đồ: </span>
+                                        <span>{selectedMapLocation.fullAddress}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowMapModal(true)}
+                                        style={{
+                                            border: 'none',
+                                            background: 'none',
+                                            color: '#2563eb',
+                                            fontWeight: 600,
+                                            cursor: 'pointer',
+                                            textDecoration: 'underline',
+                                            fontSize: '11px',
+                                            whiteSpace: 'nowrap'
+                                        }}
+                                    >
+                                        Đổi vị trí
+                                    </button>
+                                </div>
+                            )}
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
@@ -1007,6 +1110,14 @@ export function CheckoutPage() {
                     </div>
                 </form>
             </div>
+
+            <LocationPickerModal
+                isOpen={showMapModal}
+                onClose={() => setShowMapModal(false)}
+                onSelectLocation={handleMapLocationSelect}
+                initialAddress={shippingInfo.address ? `${shippingInfo.address}, ${shippingInfo.district}, ${shippingInfo.city}` : undefined}
+                title="Chọn vị trí nhận hàng chính xác"
+            />
         </div>
     );
 }

@@ -25,6 +25,7 @@ import { OrderFailedPage } from '../modules/customer/checkout/pages/OrderFailedP
 import { CustomerOrdersPage } from '../modules/customer/orders/pages/CustomerOrdersPage';
 import { WishlistPage } from '../modules/customer/wishlist/pages/WishlistPage';
 import { ChatInboxPage } from '../modules/chat/pages/ChatInboxPage';
+import { ShowroomPage } from '../modules/customer/showroom/pages/ShowroomPage';
 
 // Admin Pages
 import { AdminDashboardPage } from '../modules/admin/dashboard/pages/AdminDashboardPage';
@@ -59,6 +60,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="product/:slug" element={<ProductDetailPage />} />
         <Route path="product/id/:id" element={<ProductDetailPage />} />
+        <Route path="showroom" element={<ShowroomPage />} />
 
         {/* 2.2 Các trang bảo vệ: Bắt buộc đăng nhập tài khoản */}
         <Route element={<ProtectedRoute allowedRoles={['customer', 'staff', 'seller', 'admin']} />}>

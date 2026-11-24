@@ -18,6 +18,7 @@ interface CartItem {
   product: {
     id: string | number;
     name: string;
+    slug?: string;
   };
   variant: {
     price: number;

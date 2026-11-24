@@ -8,8 +8,14 @@ import {
   PackageCheck,
   ShoppingBag,
   Store,
-  Users
+  Users,
+  MapPin,
+  Save,
+  ExternalLink
 } from 'lucide-react';
+import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
+import { ShopLocationMap } from '../../../../components/map/ShopLocationMap';
+import { DEFAULT_SHOWROOM, type ShowroomConfig } from '../../../customer/showroom/pages/ShowroomPage';
 import { adminMetricsApi, adminModerationApi } from '../../../../api';
 import type { AdminReport, AdminReportPeriod } from '../../../../api';
 import type { User } from '../../../../types/auth.types';
@@ -29,6 +35,35 @@ export const AdminDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const { showToast } = useToast();
+
+  const [showMapModal, setShowMapModal] = useState(false);
+  const [showroomConfig, setShowroomConfig] = useState<ShowroomConfig>(() => {
+    try {
+      const saved = localStorage.getItem('lhk_main_showroom');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return DEFAULT_SHOWROOM;
+  });
+
+  const handleMapLocationSelect = (loc: LocationResult) => {
+    setShowroomConfig((prev: ShowroomConfig) => ({
+      ...prev,
+      address: loc.fullAddress,
+      lat: loc.lat,
+      lng: loc.lng
+    }));
+    showToast('Đã nhận tọa độ từ bản đồ! Bấm "Lưu Cấu Hình Showroom" để áp dụng toàn sàn.', 'info');
+  };
+
+  const handleSaveShowroom = (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      localStorage.setItem('lhk_main_showroom', JSON.stringify(showroomConfig));
+      showToast('Đã lưu cấu hình Showroom chính thành công!', 'success');
+    } catch {
+      showToast('Không thể lưu cấu hình Showroom.', 'error');
+    }
+  };
 
   const loadDashboard = async () => {
     setLoading(true);
@@ -308,8 +343,140 @@ export const AdminDashboardPage: React.FC = () => {
               </table>
             </div>
           </section>
+
+          {/* 4. Quản lý vị trí Showroom chính của sàn */}
+          <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <span>Quản Lý Vị Trí Showroom Chính (Miền Nam)</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Điều chỉnh vị trí hiển thị trên bản đồ và thông tin liên hệ cho khách hàng tại trang /showroom.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMapModal(true)}
+                  className="px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5" />
+                  <span>Chọn vị trí trên bản đồ</span>
+                </button>
+                <Link
+                  to="/showroom"
+                  target="_blank"
+                  className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center gap-1 transition-colors"
+                >
+                  <span>Xem trang khách</span>
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Cột trái: Bản đồ xem trước */}
+              <div className="lg:col-span-7">
+                <div className="text-xs font-bold text-slate-700 mb-2 flex items-center justify-between">
+                  <span>Bản đồ vị trí thực tế hiện tại:</span>
+                  <span className="text-[11px] font-mono font-normal text-slate-400">
+                    Toạ độ: {showroomConfig.lat.toFixed(4)}, {showroomConfig.lng.toFixed(4)}
+                  </span>
+                </div>
+                <ShopLocationMap
+                  key={`${showroomConfig.lat}-${showroomConfig.lng}`}
+                  shopName={showroomConfig.name}
+                  address={showroomConfig.address}
+                  phone={showroomConfig.phone}
+                  openHours={showroomConfig.openHours}
+                  lat={showroomConfig.lat}
+                  lng={showroomConfig.lng}
+                  height="340px"
+                  showCard={false}
+                />
+              </div>
+
+              {/* Cột phải: Form chỉnh sửa chi tiết */}
+              <form onSubmit={handleSaveShowroom} className="lg:col-span-5 flex flex-col justify-between space-y-4">
+                <div className="space-y-3.5 text-xs">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Tên Showroom / Chi nhánh</label>
+                    <input
+                      type="text"
+                      value={showroomConfig.name}
+                      onChange={(e) => setShowroomConfig({ ...showroomConfig, name: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Địa chỉ cụ thể</label>
+                    <textarea
+                      rows={2}
+                      value={showroomConfig.address}
+                      onChange={(e) => setShowroomConfig({ ...showroomConfig, address: e.target.value })}
+                      required
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Hotline showroom</label>
+                      <input
+                        type="text"
+                        value={showroomConfig.phone}
+                        onChange={(e) => setShowroomConfig({ ...showroomConfig, phone: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Giờ mở cửa</label>
+                      <input
+                        type="text"
+                        value={showroomConfig.openHours}
+                        onChange={(e) => setShowroomConfig({ ...showroomConfig, openHours: e.target.value })}
+                        required
+                        className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-slate-400">
+                    💡 Kéo ghim trên bản đồ để lấy tọa độ tự động
+                  </span>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>Lưu Cấu Hình Showroom</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </section>
         </>
       )}
+
+      <LocationPickerModal
+        isOpen={showMapModal}
+        onClose={() => setShowMapModal(false)}
+        onSelectLocation={handleMapLocationSelect}
+        initialAddress={showroomConfig.address}
+        initialLat={showroomConfig.lat}
+        initialLng={showroomConfig.lng}
+        title="Chọn vị trí Showroom chính của sàn"
+      />
     </div>
   );
 };
