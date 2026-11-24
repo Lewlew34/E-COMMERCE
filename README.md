@@ -1,6 +1,6 @@
-# LHK Tech - Sàn Thương Mại Điện Tử Đồ Công Nghệ
+# LHK Tech - Sàn Thương Mại Điện Tử Thiết Bị & Sản Phẩm Công Nghệ
 
-Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết bị và sản phẩm công nghệ cao cấp (Laptop Gaming, Ultrabook, Flagship Smartphone, Màn hình đồ họa, Linh kiện PC & Gaming Gear).
+Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết bị và sản phẩm công nghệ cao cấp (Laptop Gaming, Ultrabook, Flagship Smartphone, Màn hình đồ họa, Linh kiện PC & Gaming Gear), xây dựng theo kiến trúc phân tách rõ ràng giữa Frontend Single-Page Application (SPA) và Backend RESTful API.
 
 ---
 
@@ -8,25 +8,23 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
 
 - **Frontend:**
   - **Framework & Ngôn ngữ:** [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-  - **Công cụ build:** [Vite](https://vite.dev/) (chạy tại cổng mặc định `http://localhost:3000`)
+  - **Công cụ build:** [Vite](https://vite.dev/)
   - **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
+  - **Bản đồ & Định vị:** [Leaflet](https://leafletjs.com/) + OpenStreetMap (OSM) & Nominatim Geocoding API (Miễn phí 100%, không cần API Key)
   - **Bộ icon:** [Lucide React](https://lucide.dev/)
   - **Điều hướng:** [React Router v7](https://reactrouter.com/)
-  - **HTTP Client:** [Axios](https://axios-http.com/) & Fetch API
-  - **State Management:** Context API (`AuthContext`, `CartContext`, `WishlistContext`, `ToastContext`, `AuthModalContext`) kết hợp đồng bộ API CSDL và LocalStorage fallback.
-- **Cơ sở dữ liệu (Database Schema):**
-  - MySQL/MariaDB `techecommercedb` (18 bảng quan hệ: sản phẩm, biến thể, đơn hàng, kho, flash sale, hội thoại chat, tài khoản, `seller_order_status`).
-- **Backend:**
-  - **PHP 8.x + MySQL/MariaDB** (chạy qua XAMPP hoặc PHP CLI).
-  - Kiến trúc API RESTful phân chia rõ ràng theo từng vai trò người dùng (**5 Roles**).
-  - Tích hợp **Google Gemini API** cho trợ lý ảo **LHKTech AI**.
-  - Cổng thanh toán trực tuyến: **VNPAY Sandbox** & **PayPal**.
-  - Dịch vụ gửi email thông báo đơn hàng: **PHPMailer / OrderMailService**.
-  - Quản lý phiên làm việc bằng Session Cookie an toàn (`httponly`, `samesite`).
+  - **HTTP Client:** [Axios](https://axios-http.com/) & Native Fetch API
+  - **State Management:** React Context API (`AuthContext`, `CartContext`, `WishlistContext`, `ToastContext`, `AuthModalContext`)
+- **Backend & API:**
+  - **Ngôn ngữ & Nền tảng:** PHP 8.x (chạy qua XAMPP Apache / PHP CLI)
+  - **Kiến trúc:** RESTful API chuẩn hóa JSON (`json_success`, `json_error`), phân quyền theo 5 nhóm người dùng
+  - **Cơ sở dữ liệu:** MySQL / MariaDB (kết nối PDO Singleton bảo mật chống SQL Injection)
+  - **Trí tuệ nhân tạo:** Tích hợp **Google Gemini API** cho trợ lý ảo tư vấn công nghệ thông minh
+  - **Cổng thanh toán:** **VNPAY Sandbox** & **PayPal SDK**
+  - **Dịch vụ Email:** **PHPMailer** tự động gửi hóa đơn và thông báo xác nhận đơn hàng
 - **SEO & Social Sharing Prerender:**
-  - URL thân thiện chuẩn SEO (`/product/:slug`).
-  - Thẻ Meta động: Title, Description, Canonical URL, Open Graph (Facebook/Zalo), Twitter Card.
-  - Server-Side Meta Injector (`Backend/api/common/seo_render.php`) kết hợp Apache `.htaccess` tự động bắt bot crawler (Facebook Crawler, Googlebot) giải quyết triệt để vấn đề SPA Metadata.
+  - Đường dẫn thân thiện chuẩn SEO (`/product/:slug`)
+  - Server-Side Meta Injector (`Backend/api/common/seo_render.php`) kết hợp Apache `.htaccess` tự động nhận diện bot crawler (Facebook, Zalo, Googlebot) để render thẻ Open Graph / Twitter Card động.
 
 ---
 
@@ -34,58 +32,59 @@ Hệ thống sàn thương mại điện tử chuyên biệt cho các thiết b�
 
 ```text
 E-COMMERCE/
-├── .env                              # Cấu hình môi trường duy nhất (DB, Gemini API, URLs) - git ignore
-├── .env.example                      # Bản mẫu cấu hình chung cho cả Frontend & Backend
+├── .env                              # Cấu hình môi trường duy nhất (DB, Gemini API, URLs)
+├── .env.example                      # Mẫu cấu hình môi trường chuẩn
 ├── .gitignore
-├── README.md                         # Tài liệu hướng dẫn dự án
+├── README.md                         # Tài liệu hướng dẫn cài đặt & vận hành dự án
 │
-├── Backend/                          # Phân hệ Backend API (PHP + MariaDB)
-│   ├── config/                       # Cấu hình lõi (Đọc từ .env gốc)
-│   │   ├── env.php                   # Nạp biến môi trường từ file .env gốc
-│   │   ├── database.php              # Kết nối PDO tập trung (Singleton)
-│   │   ├── cors.php                  # Xử lý CORS và Session Cookie thống nhất
-│   │   ├── mail.php                  # Cấu hình SMTP gửi mail đơn hàng
-│   │   ├── vnpay_create.php          # Cấu hình khởi tạo thanh toán VNPAY
+├── Backend/                          # PHÂN HỆ BACKEND API (PHP + MySQL)
+│   ├── config/                       # Cấu hình kết nối & tích hợp bên ngoài
+│   │   ├── env.php                   # Nạp biến môi trường từ .env gốc
+│   │   ├── database.php              # Kết nối PDO Singleton tập trung
+│   │   ├── cors.php                  # Xử lý CORS và Session Cookie
+│   │   ├── mail.php                  # Cấu hình SMTP gửi mail hóa đơn
+│   │   ├── vnpay_create.php          # Cấu hình tạo URL thanh toán VNPAY
 │   │   └── vnpay_return.php          # Xử lý kết quả trả về từ VNPAY
-│   ├── core/                         # Các hàm tiện ích dùng chung
-│   │   ├── response.php              # Helper trả về JSON: json_success(), json_error()
-│   │   ├── auth_guard.php            # Kiểm tra quyền & status thực từ DB
-│   │   └── OrderMailService.php      # Gửi email hóa đơn tự động
-│   ├── migrations/                   # File SQL di chuyển CSDL (Chat, Seller, Enhancements)
-│   ├── storage/                      # Lưu trữ ảnh upload (chat attachments...)
-│   ├── scripts/                      # Tiện ích CLI (create_admin.php)
-│   └── api/                          # HỆ THỐNG API CHIA THEO PHÂN HỆ
-│       ├── common/                   # [Public] products, product_detail, seo_render, flash_sales, ai_chat
-│       ├── auth/                     # [Tất cả] login, logout, me, register_customer, register_seller
-│       ├── customer/                 # [Customer] addresses, orders
-│       ├── chat/                     # [Chat] conversations, messages, attachment, notifications, share_options
-│       ├── seller/                   # [Seller] dashboard, products, variants, orders, flash_sale, transactions
-│       ├── admin/                    # [Admin] metrics, moderation, users
+│   ├── core/                         # Các hàm tiện ích cốt lõi
+│   │   ├── response.php              # Helper JSON Response chuẩn
+│   │   ├── auth_guard.php            # Middleware kiểm tra phiên & quyền hạn
+│   │   └── OrderMailService.php      # Dịch vụ gửi email đơn hàng tự động
+│   ├── migrations/                   # File SQL di chuyển CSDL & cập nhật cấu trúc
+│   ├── storage/                      # Thư mục lưu trữ ảnh tải lên (tin nhắn chat...)
+│   ├── scripts/                      # Công cụ dòng lệnh CLI (create_admin.php)
+│   └── api/                          # HỆ THỐNG ENDPOINT API CHIA THEO PHÂN HỆ
+│       ├── common/                   # [Public] Danh mục, sản phẩm, Flash Sale, AI Chatbot
+│       ├── auth/                     # [Auth] Đăng nhập, đăng ký, xác thực token
+│       ├── customer/                 # [Customer] Sổ địa chỉ, đặt hàng, lịch sử đơn
+│       ├── chat/                     # [Chat] Hội thoại, tin nhắn thời gian thực
+│       ├── seller/                   # [Seller] Dashboard, sản phẩm, biến thể, đơn shop, doanh thu
+│       ├── admin/                    # [Admin] Báo cáo chỉ số GMV, duyệt shop, duyệt sản phẩm
 │       ├── vnpay_create_payment.php  # Cổng thanh toán VNPAY
 │       ├── vnpay_callback.php        # Webhook IPN xử lý thanh toán VNPAY
 │       └── verify_paypal.php         # Xác thực thanh toán PayPal quốc tế
 │
-└── Frontend/                         # Phân hệ Giao diện (React 19 + TypeScript + Vite)
-    ├── vite.config.ts                # Cấu hình envDir, dev crawler middleware
-    ├── package.json
-    ├── public/
-    │   └── .htaccess                 # Cấu hình Apache cho SPA Routing & Crawler Bot
+└── Frontend/                         # PHÂN HỆ GIAO DIỆN (React 19 + TypeScript + Vite)
+    ├── vite.config.ts                # Cấu hình Vite & Middleware
+    ├── package.json                  # Khai báo thư viện phụ thuộc
+    ├── public/                       # Tài nguyên tĩnh & file .htaccess
     └── src/
-        ├── api/                      # Tầng gọi API Backend (client.ts, chatApi, catalogApi, authApi...)
-        ├── components/               # UI components dùng chung (AIChatWidget, TawkToChat, ui/)
-        ├── contexts/                 # State toàn cục (Auth, Cart, Wishlist, Toast, AuthModal)
-        ├── hooks/                    # Custom Hooks (usePageMeta - quản lý SEO & Open Graph)
-        ├── layouts/                  # Layout theo vai trò (CustomerLayout, SellerLayout, AdminLayout, AuthLayout)
-        ├── modules/                  # Phân hệ giao diện các trang
-        │   ├── auth/                 # Đăng nhập, đăng ký khách hàng & người bán, quên mật khẩu
-        │   ├── customer/             # Home, Catalog, ProductDetail, Cart, Checkout, Orders, Wishlist
+        ├── api/                      # Tầng gọi API Backend (axios client, chatApi, catalogApi...)
+        ├── components/
+        │   ├── common/               # AIChatWidget, TawkToChat, AuthRequiredModal
+        │   └── map/                  # BỘ COMPONENT BẢN ĐỒ DÙNG CHUNG
+        │       ├── LocationPickerModal.tsx  # Modal bản đồ chọn địa chỉ (Ghim + GPS + Geocoding)
+        │       └── ShopLocationMap.tsx      # Hiển thị vị trí Showroom & dẫn đường Google Maps
+        ├── contexts/                 # State toàn cục (Auth, Cart, Wishlist, Toast)
+        ├── layouts/                  # Layout theo từng phân hệ (Customer, Seller, Admin, Auth)
+        ├── modules/                  # Các trang chức năng theo phân hệ
+        │   ├── auth/                 # Đăng nhập, đăng ký khách hàng, đăng ký người bán
+        │   ├── customer/             # Home, Catalog, ProductDetail, Cart, Checkout, Showroom, Orders
         │   ├── chat/                 # ChatInboxPage (Hộp thư Live Chat giữa Khách & Shop)
         │   ├── seller/               # Dashboard, Products, Orders, Messages, Analytics
-        │   └── admin/                # Dashboard, Reports, Sellers, Products, Users, Categories, Settings
-        ├── routes/                   # Hệ thống định tuyến AppRoutes & ProtectedRoute
-        ├── services/                 # storageService.ts (đồng bộ CSDL & fallback)
+        │   └── admin/                # Dashboard, Users, Sellers, Products, Categories, Settings
+        ├── routes/                   # Hệ thống định tuyến (AppRoutes & ProtectedRoute)
         ├── types/                    # Định nghĩa kiểu dữ liệu TypeScript
-        └── utils/                    # Format tiền tệ VNĐ (format.ts)
+        └── utils/                    # Các hàm helper (định dạng tiền tệ VNĐ, xử lý chuỗi)
 ```
 
 ---
@@ -93,45 +92,46 @@ E-COMMERCE/
 ## 🌟 Các Phân Hệ & Tính Năng Hoàn Thiện
 
 ### 1. Phân Hệ Khách Hàng (Customer Storefront)
-- **Trang chủ & Flash Sale (`/`):** Đồng hồ đếm ngược Flash Sale thời gian thực, danh sách deal sốc và banner công nghệ.
-- **Danh Mục & Bộ Lọc Nâng Cao (`/catalog`):** Tìm kiếm thông minh (bỏ dấu tiếng Việt), lọc đa chiều theo Thương hiệu & Ngành hàng, sắp xếp giá bán.
+- **Trang chủ & Flash Sale (`/`):** Đồng hồ đếm ngược Flash Sale theo thời gian thực, danh sách deal sốc và banner công nghệ.
+- **Danh Mục & Lọc Nâng Cao (`/catalog`):** Tìm kiếm thông minh (bỏ dấu tiếng Việt), lọc đa tiêu chí theo Hãng & Danh mục, sắp xếp giá bán.
 - **Chi Tiết Sản Phẩm & SEO Friendly URL (`/product/:slug`):**
   - Đường dẫn thân thiện chuẩn SEO (Ví dụ: `/product/asus-rog-strix-scar-16`).
-  - Tự động gán Title, Meta Description, Canonical URL và Open Graph tags cho xem trước khi chia sẻ lên **Facebook / Zalo**.
-  - Bộ chọn biến thể cấu hình (RAM, SSD, Màu sắc), cập nhật giá & tồn kho tương ứng.
+  - Tự động sinh thẻ Meta Open Graph hỗ trợ xem trước sinh động khi chia sẻ liên kết lên **Facebook / Zalo**.
+  - Bộ chọn biến thể cấu hình linh hoạt (RAM, SSD, Màu sắc), cập nhật giá & tồn kho tương ứng.
   - Nút **"Nhắn tin với Shop"** kết nối trò chuyện trực tiếp với chủ gian hàng.
-- **Giỏ Hàng & Thanh Toán Đa Cổng (`/cart`, `/checkout`):**
-  - Quản lý sổ địa chỉ giao hàng (`user_addresses`).
-  - Hỗ trợ 4 phương thức thanh toán linh hoạt:
-    1. **COD**: Thanh toán tiền mặt khi nhận hàng.
-    2. **VietQR 24/7**: Quét mã QR chuyển khoản ngân hàng tức thì.
-    3. **VNPAY-QR / Thẻ Quốc Tế**: Tích hợp cổng thanh toán trực tuyến VNPAY Sandbox.
-    4. **PayPal**: Thanh toán qua cổng quốc tế bằng thẻ tín dụng / tài khoản PayPal.
-  - Tự động sinh mã đơn hàng chuẩn (`ORD-YYYYMMDD-XXX`), cập nhật tồn kho và ghi nhật ký `inventory_logs`.
-- **Lịch Sử Đơn Hàng & Hóa Đơn (`/customer/orders`):**
-  - Xem chi tiết từng món hàng, tiến trình xử lý và mã vận đơn giao hàng từ shop.
-  - Hỗ trợ hủy đơn hàng khi đang ở trạng thái `pending` (tự động hoàn trả số lượng vào kho).
+- **Bản Đồ Chọn Vị Trí Nhận Hàng Thông Minh (`/checkout`):**
+  - Tích hợp nút **"🗺️ Chọn trên bản đồ"** ngay tại form địa chỉ giao hàng.
+  - Cho phép khách hàng kéo thả ghim vị trí hoặc bấm **"Vị trí của tôi"** (GPS).
+  - Tự động phân giải tọa độ thành địa chỉ chi tiết tiếng Việt (*Số nhà, Tên đường, Phường/Xã, Quận/Huyện, Tỉnh/Thành*) và điền ngược lại vào form.
+  - Vẫn hỗ trợ nhập tay truyền thống song song 100%.
+- **Thanh Toán Đa Phương Thức:**
+  1. **COD**: Thanh toán tiền mặt khi nhận hàng.
+  2. **VietQR 24/7**: Quét mã QR chuyển khoản ngân hàng tức thì.
+  3. **VNPAY Sandbox**: Thanh toán qua thẻ ATM / Internet Banking / VNPAY-QR.
+  4. **PayPal**: Thanh toán qua cổng quốc tế bằng thẻ Visa / MasterCard / PayPal.
+- **Trang Showroom Trực Tiếp Miền Nam (`/showroom`):**
+  - Hiển thị vị trí showroom chính của sàn tại Miền Nam trên bản đồ tương tác.
+  - Tích hợp nút **"Chỉ đường trên Google Maps"** mở ứng dụng dẫn đường trực tiếp.
 - **Hệ Thống Live Chat Khách Hàng ↔ Shop (`/customer/messages`):**
-  - Nhắn tin trực tiếp với từng gian hàng, đính kèm hình ảnh thiết bị (tối đa 5MB).
+  - Trò chuyện trực tiếp với từng gian hàng, đính kèm hình ảnh thiết bị.
   - Chia sẻ trực tiếp thẻ sản phẩm hoặc đơn hàng cần khiếu nại/hỗ trợ ngay trong khung chat.
-  - Chức năng trả lời (reply) tin nhắn cụ thể và thu hồi/xóa tin nhắn.
 - **Trợ Lý Ảo LHKTech AI (Google Gemini):**
-  - Khung chatbox nổi ở góc màn hình kết nối trực tiếp **Google Gemini API** (`Backend/api/common/ai_chat.php`).
-  - Tư vấn cấu hình máy, gợi ý laptop gaming/đồ họa/smartphone đang mở bán thực tế trong CSDL và giải đáp chính sách bảo hành.
+  - Chatbox nổi tư vấn cấu hình máy, gợi ý laptop gaming, đồ họa và giải đáp chính sách bảo hành.
 
 ### 2. Kênh Người Bán (Seller Center)
-- **Đăng ký & Kiểm duyệt (`/seller/register`):** Đăng ký thông tin gian hàng (shop name, địa chỉ, ngành hàng kinh doanh). Tài khoản ở trạng thái `inactive` chờ Admin duyệt trước khi được bán hàng.
-- **Quản lý sản phẩm & Kho hàng (`/seller/products`):** Thêm mới và chỉnh sửa thiết bị, cấu hình biến thể SKU (giá bán, giá so sánh, tồn kho, ảnh). Sản phẩm mới tự động chuyển trạng thái `pending_review` chờ duyệt.
-- **Chiến dịch Flash Sale:** Đăng ký sản phẩm tham gia khung giờ vàng giảm giá trực tiếp từ trang quản lý shop.
-- **Xử lý đơn hàng gian hàng (`/seller/orders`):** Tiếp nhận đơn hàng, duyệt giao đơn, cập nhật mã vận đơn riêng theo từng shop (`seller_order_status`).
-- **Tin nhắn khách hàng (`/seller/messages`):** Quản lý toàn bộ danh sách hội thoại khách hàng, nhận thông báo tin nhắn chưa đọc và tư vấn bán hàng.
-- **Lịch sử giao dịch & Phân tích (`/seller/analytics`, `transactions.php`):** Thống kê doanh thu ròng, lịch sử tiền về từ các cổng thanh toán online, cảnh báo sản phẩm sắp hết hàng ($\le 5$).
+- **Đăng ký mở gian hàng (`/seller/register`):** Đăng ký thông tin shop (tên shop, số điện thoại, ngành hàng kinh doanh).
+- **Quản lý sản phẩm & Kho hàng (`/seller/products`):** Thêm mới và chỉnh sửa thiết bị, tạo biến thể SKU, giá bán, tồn kho và hình ảnh.
+- **Quản lý vị trí Kho / Showroom của Shop (`/seller/dashboard`):** Mỗi Shop có thể tự chọn và ghim vị trí kho xuất hàng của riêng mình trên bản đồ để khách hàng định vị điểm xuất phát đơn hàng.
+- **Xử lý đơn hàng gian hàng (`/seller/orders`):** Tiếp nhận đơn hàng, duyệt giao đơn, cập nhật mã vận đơn riêng theo từng shop.
+- **Hộp thư tư vấn bán hàng (`/seller/messages`):** Quản lý toàn bộ danh sách hội thoại khách hàng, nhận thông báo tin nhắn chưa đọc.
+- **Báo cáo doanh thu & Phân tích (`/seller/analytics`):** Thống kê doanh thu ròng, cảnh báo sản phẩm sắp hết hàng ($\le 5$).
 
 ### 3. Kênh Quản Trị Viên (Admin Center)
-- **Bảng điều khiển chỉ số toàn sàn (`/admin/dashboard`, `/admin/reports`):** Theo dõi tổng doanh số GMV, doanh thu thực tế, số lượng đơn hàng theo ngày/tuần/tháng/năm; phân tích đóng góp doanh số giữa các shop và hỗ trợ xuất báo cáo file CSV.
-- **Duyệt hồ sơ gian hàng (`/admin/sellers`):** Xem hồ sơ Seller mới đăng ký, phê duyệt (`active`), từ chối (`rejected`), tạm khóa shop (`banned`) hoặc mở lại.
-- **Duyệt sản phẩm đăng bán (`/admin/products`):** Kiểm duyệt nội dung mô tả, hình ảnh, thông số kỹ thuật của thiết bị trước khi cho phép xuất hiện trên sàn (`published`).
-- **Quản lý người dùng (`/admin/users`):** Danh sách người dùng, vai trò (`customer`, `seller`, `admin`), phân quyền và kích hoạt tài khoản.
+- **Bảng điều khiển toàn sàn (`/admin/dashboard`):** Theo dõi tổng doanh số GMV, doanh thu đã giao, số lượng đơn hàng và biểu đồ so sánh giữa các gian hàng.
+- **Quản lý & Điều chỉnh vị trí Showroom chính:** Admin có thể trực tiếp kéo ghim bản đồ hoặc cập nhật địa chỉ showroom của sàn ngay trên Dashboard; hệ thống sẽ tự động đồng bộ ngay lập tức sang trang `/showroom` của khách hàng.
+- **Duyệt hồ sơ gian hàng (`/admin/sellers`):** Phê duyệt (`active`), từ chối (`rejected`), tạm khóa shop (`banned`) hoặc mở khóa.
+- **Kiểm duyệt sản phẩm (`/admin/products`):** Kiểm tra thông số kỹ thuật, hình ảnh thiết bị trước khi cho phép mở bán công khai.
+- **Quản lý người dùng (`/admin/users`):** Xem danh sách tài khoản, phân quyền vai trò và quản lý trạng thái hoạt động.
 
 ---
 
@@ -141,80 +141,122 @@ Hệ thống bao gồm 18 bảng quan hệ chuẩn hóa:
 
 | STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
 | :---: | :--- | :--- |
-| 1 | `users` | Tài khoản khách hàng, người bán (`staff`/`seller`) và quản trị viên (`admin`) |
+| 1 | `users` | Tài khoản khách hàng, người bán (`seller`) và quản trị viên (`admin`) |
 | 2 | `user_addresses` | Sổ địa chỉ nhận hàng của khách |
-| 3 | `categories` | Cây danh mục thiết bị công nghệ đa cấp (`parent_id`) |
-| 4 | `brands` | Thương hiệu công nghệ chính hãng (Apple, ASUS, Nvidia...) |
-| 5 | `products` | Sản phẩm chính, tên, slug, mô tả, thông số kỹ thuật JSON, `seller_id` |
-| 6 | `product_variants` | Biến thể sản phẩm (SKU, giá bán, giá so sánh, tồn kho, thuộc tính RAM/SSD/Color) |
-| 7 | `carts` | Giỏ hàng người dùng |
-| 8 | `cart_items` | Chi tiết món hàng trong giỏ |
-| 9 | `orders` | Đơn hàng, mã đơn, tổng tiền, phí vận chuyển, trạng thái đơn & thanh toán |
-| 10 | `order_items` | Snapshot tên sản phẩm, cấu hình biến thể và giá bán gắn với `seller_id` |
-| 11 | `payments` | Giao dịch thanh toán (COD, VietQR, VNPAY, PayPal) |
-| 12 | `flash_sales` | Chiến dịch giờ vàng công nghệ (Khung giờ bắt đầu & kết thúc) |
-| 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale (Giá sốc, giới hạn suất bán, đã bán) |
+| 3 | `categories` | Danh mục thiết bị công nghệ đa cấp (`parent_id`) |
+| 4 | `brands` | Thương hiệu công nghệ chính hãng (Apple, ASUS, Dell, MSI, Nvidia...) |
+| 5 | `products` | Sản phẩm chính, tên, slug SEO, mô tả, thông số kỹ thuật JSON, `seller_id` |
+| 6 | `product_variants` | Biến thể cấu hình SKU (giá bán, giá so sánh, tồn kho, RAM/SSD/Màu sắc) |
+| 7 | `carts` | Giỏ hàng của người dùng |
+| 8 | `cart_items` | Danh sách sản phẩm và số lượng trong giỏ hàng |
+| 9 | `orders` | Đơn hàng, mã đơn, tổng tiền, địa chỉ giao hàng, trạng thái xử lý |
+| 10 | `order_items` | Snapshot tên sản phẩm, cấu hình biến thể và giá bán gắn với từng shop |
+| 11 | `payments` | Lịch sử giao dịch thanh toán (COD, VietQR, VNPAY, PayPal) |
+| 12 | `flash_sales` | Chiến dịch giờ vàng giảm giá (Khung giờ bắt đầu & kết thúc) |
+| 13 | `flash_sale_items` | Sản phẩm tham gia Flash Sale (Giá ưu đãi, giới hạn số lượng) |
 | 14 | `wishlists` | Danh sách sản phẩm được khách hàng lưu yêu thích |
 | 15 | `inventory_logs` | Lịch sử biến động kho (Tự động trừ tồn kho khi phát sinh đơn hàng) |
-| 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn nhiều shop |
-| 17 | `chat_conversations` | Hội thoại Live Chat riêng biệt cho mỗi cặp khách hàng và shop |
-| 18 | `chat_messages` | Nội dung tin nhắn, ảnh đính kèm, thẻ chia sẻ sản phẩm/đơn hàng, phản hồi & xóa tin |
+| 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn |
+| 17 | `chat_conversations` | Hội thoại Live Chat riêng biệt giữa khách hàng và từng shop |
+| 18 | `chat_messages` | Nội dung tin nhắn chat, ảnh đính kèm, thẻ chia sẻ sản phẩm / đơn hàng |
 
 ---
 
-## 🛠️ Hướng Dẫn Khởi Chạy Dự Án
+## 🛠️ Hướng Dẫn Cài Đặt & Khởi Chạy Dự Án
 
-### Yêu cầu môi trường:
-- [Node.js](https://nodejs.org/) phiên bản 20.x trở lên
-- XAMPP (Apache + MySQL/MariaDB, PHP 8.x)
+### 1. Yêu cầu môi trường & Phần mềm cần cài
+Trước khi cài đặt, hãy đảm bảo máy tính của bạn đã cài đặt các phần mềm sau:
+- **Node.js**: Phiên bản **v20.x** hoặc **v22.x** trở lên ([Tải tại đây](https://nodejs.org/)).
+- **XAMPP**: Bao gồm Apache 2.4, MySQL / MariaDB và PHP **8.1** trở lên ([Tải tại đây](https://www.apachefriends.org/)).
+- **Git**: Dùng để quản lý mã nguồn.
 
-### Bước 1: Khởi động Cơ sở dữ liệu & Cấu hình `.env`
+### 2. Cấu hình Extension PHP (Bắt buộc)
+Mở file cấu hình **`php.ini`** trong thư mục XAMPP (`C:\xampp\php\php.ini`) và đảm bảo các dòng sau **không có dấu chấm phẩy (`;`) ở đầu**:
+```ini
+extension=pdo_mysql
+extension=curl
+extension=openssl
+extension=mbstring
+extension=fileinfo
+```
+> Sau khi chỉnh sửa, lưu file và **Restart Apache** trong XAMPP Control Panel.
+
+### 3. Thiết lập Cơ sở dữ liệu MySQL
 1. Mở **XAMPP Control Panel**, bấm **Start** cả **Apache** và **MySQL**.
-2. Mở trình duyệt vào phpMyAdmin (`http://localhost/phpmyadmin`), tạo CSDL tên: **`techecommercedb`**.
-3. Import file CSDL `techecommercedb.sql` (hoặc chạy các file migration trong `Backend/migrations/`).
-4. Tạo file cấu hình **`.env`** tại thư mục gốc `E-COMMERCE/` (sao chép từ `.env.example`):
-   ```env
-   DB_HOST=localhost
-   DB_PORT=3306
-   DB_NAME=techecommercedb
-   DB_USER=root
-   DB_PASS=
+2. Mở trình duyệt truy cập phpMyAdmin: `http://localhost/phpmyadmin`.
+3. Tạo một Database mới có tên: **`techecommercedb`** (Collation: `utf8mb4_unicode_ci`).
+4. Nhấn tab **Import**, chọn file `techecommercedb.sql` (hoặc chạy các file trong thư mục `Backend/migrations/`) để khởi tạo toàn bộ 18 bảng CSDL.
 
-   FRONTEND_URL=http://localhost:3000
-   ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-   VITE_API_URL=http://localhost/TechMart/Backend/api
+### 4. Cấu hình file môi trường `.env`
+Tạo một file có tên **`.env`** tại thư mục gốc `E-COMMERCE/` (sao chép nội dung từ `.env.example`):
+```env
+# Kết nối Cơ sở dữ liệu
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=techecommercedb
+DB_USER=root
+DB_PASS=
 
-   # Khóa Google Gemini (cho LHKTech AI Chatbot)
-   GEMINI_API_KEY=your_gemini_api_key
-   GEMINI_MODEL=gemini-3.5-flash-lite
+# Cấu hình địa chỉ URL
+FRONTEND_URL=http://localhost:3000
+ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+VITE_API_URL=http://localhost/TechMart/Backend/api
 
-   # Cấu hình Live Chat Tawk.to (Tùy chọn)
-   VITE_TAWK_PROPERTY_ID=
-   VITE_TAWK_WIDGET_ID=
-   ```
+# Khóa Google Gemini (cho trợ lý ảo AI Chatbot)
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 
-### Bước 2: Kết nối Backend với Apache XAMPP
-Tạo một liên kết thư mục (Directory Junction) từ thư mục dự án sang thư mục `htdocs` của XAMPP bằng quyền Administrator:
+# Cấu hình gửi mail hóa đơn SMTP (Tùy chọn)
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=586
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+```
+
+### 5. Kết nối Backend với Apache XAMPP
+Để Apache của XAMPP nhận diện được thư mục mã nguồn Backend, mở **Command Prompt (cmd) với quyền Administrator** và chạy lệnh tạo liên kết:
 ```cmd
 mklink /J "C:\xampp\htdocs\TechMart" "C:\Users\Asus\Documents\hoc\E-COMMERCE"
 ```
-Kiểm tra API hoạt động bằng cách truy cập: `http://localhost/TechMart/Backend/api/common/products.php`.
+> Kiểm tra kết nối Backend bằng cách mở trình duyệt truy cập:  
+> `http://localhost/TechMart/Backend/api/common/products.php`. Nếu trả về chuỗi JSON thì Backend đã hoạt động chính xác.
 
-### Bước 3: Khởi chạy Giao diện Frontend
-Mở terminal tại thư mục `Frontend`:
+### 6. Cài đặt thư viện & Khởi chạy Giao diện Frontend
+Mở cửa sổ Terminal tại thư mục `Frontend` và thực hiện các lệnh:
+
 ```powershell
+# Di chuyển vào thư mục Frontend
 cd Frontend
+
+# Cài đặt toàn bộ thư viện phụ thuộc (bao gồm React, Tailwind CSS, Leaflet...)
 npm install
+
+# Khởi chạy máy chủ phát triển Frontend
 npm run dev
 ```
-Mở trình duyệt truy cập: **`http://localhost:3000`**.
+
+Sau khi chạy lệnh, mở trình duyệt truy cập: **`http://localhost:3000`**.
 
 ---
 
-## ⚡ Tài Khoản Mẫu Để Kiểm Thử
+## 👥 Hướng Dẫn Tạo & Quản Trị Tài Khoản
 
-| Vai trò | Email đăng nhập | Mật khẩu mẫu | Chức năng kiểm thử chính |
-| :--- | :--- | :---: | :--- |
-| 👤 **Khách hàng (Customer)** | `hthuy54365@gmail.com` *(hoặc tạo tại `/register`)* | `12345678` | Mua hàng, thanh toán COD/QR/VNPAY/PayPal, xem đơn hàng, chat trực tiếp với Shop, hỏi đáp LHKTech AI |
-| 🏪 **Người bán (Seller)** | `hthuy123@gmail.com` *(hoặc tạo tại `/seller/register`)* | `12345678` | Quản lý kho sản phẩm, tạo Flash Sale, duyệt đơn hàng, chat tư vấn khách hàng (`/seller/messages`) |
-| 👑 **Quản trị viên (Admin)** | `admin@lhktech.com` | `12345678` | Bảng điều khiển GMV, duyệt Shop mới (`/admin/sellers`), duyệt sản phẩm (`/admin/products`), quản lý người dùng |
+Hệ thống được thiết kế khởi đầu luôn ở trạng thái **Khách vãng lai** để đảm bảo tính bảo mật. Bạn có thể chủ động tạo các tài khoản theo nhu cầu:
+
+### 1. Khởi tạo tài khoản Quản trị viên (Admin) đầu tiên
+Để tạo tài khoản Admin chính thức và an toàn trực tiếp vào cơ sở dữ liệu, mở Terminal tại thư mục gốc và chạy lệnh CLI:
+```powershell
+php Backend/scripts/create_admin.php admin@lhktech.vn "Quản Trị Viên LHK"
+```
+- Hệ thống sẽ yêu cầu bạn nhập mật khẩu quản trị (tối thiểu 12 ký tự).
+- Mật khẩu sẽ được mã hóa chuẩn `bcrypt` an toàn và kích hoạt ngay trạng thái `active`.
+- Sau khi tạo xong, đăng nhập tại trang `/login` để truy cập vào kênh quản trị `/admin/dashboard`.
+
+### 2. Đăng ký tài khoản Khách hàng (Customer)
+- Truy cập trực tiếp đường dẫn `/register`.
+- Điền đầy đủ Họ tên, Email, Mật khẩu và bấm Đăng ký. Tài khoản sẽ được kích hoạt ngay lập tức để mua sắm.
+
+### 3. Đăng ký tài khoản Người bán (Seller)
+- Truy cập đường dẫn `/seller/register`.
+- Nhập thông tin gian hàng (Tên shop, hotline, địa chỉ kho).
+- Sau khi gửi đơn đăng ký, đăng nhập tài khoản **Admin** vào mục **Duyệt Gian Hàng (`/admin/sellers`)** để bấm **Phê Duyệt** kích hoạt gian hàng đi vào hoạt động.
