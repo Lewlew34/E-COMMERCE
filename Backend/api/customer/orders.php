@@ -5,6 +5,7 @@ require_once dirname(__DIR__, 2) . '/config/cors.php';
 require_once dirname(__DIR__, 2) . '/config/database.php';
 require_once dirname(__DIR__, 2) . '/core/response.php';
 require_once dirname(__DIR__, 2) . '/core/auth_guard.php';
+require_once dirname(__DIR__, 2) . '/core/cart_service.php';
 
 $pdo = get_db_connection();
 $action = $_GET['action'] ?? 'list';
@@ -142,6 +143,29 @@ if ($action === 'create' && $method === 'POST') {
         json_error('Tọa độ địa chỉ không hợp lệ.', 422);
     }
 
+    // Combine repeated variants before locking stock so each variant is checked and deducted once.
+    $quantitiesByVariant = [];
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            json_error('Thông tin sản phẩm trong đơn hàng không hợp lệ.', 422);
+        }
+        $variantId = filter_var($item['variantId'] ?? ($item['variant_id'] ?? null), FILTER_VALIDATE_INT);
+        $quantity = filter_var($item['quantity'] ?? null, FILTER_VALIDATE_INT);
+        if ($variantId === false || $variantId < 1 || $quantity === false || $quantity < 1) {
+            json_error('Sản phẩm hoặc số lượng đặt mua không hợp lệ.', 422);
+        }
+        $currentQuantity = $quantitiesByVariant[$variantId] ?? 0;
+        if ($quantity > PHP_INT_MAX - $currentQuantity) {
+            json_error('Tổng số lượng sản phẩm vượt giới hạn cho phép.', 422);
+        }
+        $quantitiesByVariant[$variantId] = $currentQuantity + $quantity;
+    }
+    $items = array_map(
+        static fn(int $variantId, int $quantity): array => ['variantId' => $variantId, 'quantity' => $quantity],
+        array_keys($quantitiesByVariant),
+        array_values($quantitiesByVariant)
+    );
+
     $pdo->beginTransaction();
     $lines = [];
     $subtotal = 0.0;
@@ -274,15 +298,7 @@ if ($action === 'create' && $method === 'POST') {
 
     // COD is confirmed as an order immediately; online payment carts are cleared only after gateway confirmation.
     if ($paymentMethod === 'COD') {
-        $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
-        $cartStmt->execute(['user_id' => $userId]);
-        $cartId = $cartStmt->fetchColumn();
-        if ($cartId !== false) {
-            $variantIds = array_values(array_unique(array_column($lines, 'variant_id')));
-            $marks = implode(',', array_fill(0, count($variantIds), '?'));
-            $deleteCartItems = $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)");
-            $deleteCartItems->execute([(int) $cartId, ...$variantIds]);
-        }
+        remove_order_quantities_from_cart($pdo, $userId, $orderId);
     }
 
     $pdo->commit();

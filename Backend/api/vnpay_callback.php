@@ -6,6 +6,7 @@ date_default_timezone_set('Asia/Ho_Chi_Minh');
 
 require_once __DIR__ . '/vnpay_config.php';
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/core/cart_service.php';
 
 $frontendBase = (isset($vnp_FrontendUrl) && is_string($vnp_FrontendUrl) && trim($vnp_FrontendUrl) !== '')
     ? rtrim(trim($vnp_FrontendUrl), '/')
@@ -44,6 +45,7 @@ $transactionNo = trim((string) ($vnpParams['vnp_TransactionNo'] ?? ''));
 $isSuccess = $isValidSignature
     && $responseCode === '00'
     && ($transactionStatus === '' || $transactionStatus === '00');
+$paymentRecorded = false;
 
 // Tách mã đơn gốc từ TxnRef (ví dụ ORD-20261122-C83C5A_869 -> ORD-20261122-C83C5A)
 $orderCode = (string) preg_replace('/_[0-9]+$/', '', $txnRef);
@@ -51,11 +53,13 @@ $orderCode = (string) preg_replace('/_[0-9]+$/', '', $txnRef);
 if ($orderCode !== '') {
     try {
         $pdo = get_db_connection();
+        $pdo->beginTransaction();
         $stmt = $pdo->prepare(
-            'SELECT id, user_id, order_code, order_status, payment_status
+            'SELECT id, user_id, order_code, final_amount, order_status, payment_status
              FROM orders
              WHERE order_code = :order_code
-             LIMIT 1'
+             LIMIT 1
+             FOR UPDATE'
         );
         $stmt->execute(['order_code' => $orderCode]);
         $order = $stmt->fetch();
@@ -65,10 +69,11 @@ if ($orderCode !== '') {
             $userId = (int) ($order['user_id'] ?? 0);
             $currentOrderStatus = (string) ($order['order_status'] ?? 'pending');
             $currentPaymentStatus = (string) ($order['payment_status'] ?? 'pending');
+            $reportedAmount = filter_var($vnpParams['vnp_Amount'] ?? null, FILTER_VALIDATE_INT);
+            $expectedAmount = (int) round((float) $order['final_amount'] * 100);
+            $amountMatches = $reportedAmount !== false && $reportedAmount === $expectedAmount;
 
-            $pdo->beginTransaction();
-
-            if ($isSuccess) {
+            if ($isSuccess && $amountMatches) {
                 $pdo->prepare(
                     'UPDATE orders
                      SET payment_status = :payment_status,
@@ -91,20 +96,11 @@ if ($orderCode !== '') {
                     'order_id' => $orderId,
                 ]);
 
-                $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
-                $cartStmt->execute(['user_id' => $userId]);
-                $cartId = $cartStmt->fetchColumn();
-                if ($cartId !== false) {
-                    $orderVariants = $pdo->prepare('SELECT DISTINCT variant_id FROM order_items WHERE order_id = :order_id');
-                    $orderVariants->execute(['order_id' => $orderId]);
-                    $variantIds = array_map('intval', $orderVariants->fetchAll(PDO::FETCH_COLUMN));
-                    if ($variantIds) {
-                        $marks = implode(',', array_fill(0, count($variantIds), '?'));
-                        $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)")
-                            ->execute([(int) $cartId, ...$variantIds]);
-                    }
+                if ($currentPaymentStatus !== 'paid') {
+                    remove_order_quantities_from_cart($pdo, $userId, $orderId);
                 }
-            } elseif ($responseCode !== '00') {
+                $paymentRecorded = true;
+            } elseif ($isValidSignature && !$isSuccess) {
                 $shouldRestoreStock = ($currentOrderStatus === 'pending' && $currentPaymentStatus !== 'failed');
                 $nextOrderStatus = ($currentOrderStatus === 'pending') ? 'cancelled' : $currentOrderStatus;
 
@@ -170,11 +166,16 @@ if ($orderCode !== '') {
                         }
                     }
                 }
+            } elseif ($isSuccess && !$amountMatches) {
+                error_log('VNPay amount mismatch for order ' . $orderCode);
             }
 
             $pdo->commit();
+        } else {
+            $pdo->rollBack();
         }
     } catch (Throwable $e) {
+        $paymentRecorded = false;
         if (isset($pdo) && $pdo instanceof PDO && $pdo->inTransaction()) {
             $pdo->rollBack();
         }
@@ -182,7 +183,7 @@ if ($orderCode !== '') {
 }
 
 $queryString = http_build_query($_GET);
-$targetPath = $isSuccess ? '/order-success' : '/order-failed';
+$targetPath = $paymentRecorded ? '/order-success' : '/order-failed';
 $redirectUrl = $frontendBase . $targetPath . ($queryString !== '' ? '?' . $queryString : '');
 
 header('Location: ' . $redirectUrl);

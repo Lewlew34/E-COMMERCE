@@ -14,6 +14,7 @@ interface CartContextType {
   removeFromCart: (variantId: number) => void;
   removeSelectedItems: (variantIds?: number[]) => void;
   clearCart: () => void;
+  refreshCart: () => Promise<void>;
   totalCount: number;
   subtotal: number;
   selectedVariantIds: number[];
@@ -178,6 +179,18 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setSelectedVariantIds([]);
   };
 
+  const refreshCart = async () => {
+    if (!serverCartRef.current) {
+      applyCart(readGuestCart());
+      return;
+    }
+    try {
+      applyCart(await customerCartApi.getItems());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể làm mới giỏ hàng.', 'error');
+    }
+  };
+
   const toggleSelectItem = (variantId: number) => setSelectedVariantIds(previous =>
     previous.includes(variantId) ? previous.filter(id => id !== variantId) : [...previous, variantId]
   );
@@ -187,7 +200,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const selectedItems = cart.filter(item => selectedVariantIds.includes(item.variantId));
   const selectedSubtotal = selectedItems.reduce((sum, item) => sum + item.variant.price * item.quantity, 0);
 
-  return <CartContext.Provider value={{ cart, loading, addToCart, updateQuantity, removeFromCart, removeSelectedItems, clearCart, totalCount, subtotal, selectedVariantIds, toggleSelectItem, selectAllItems, selectedSubtotal, selectedItems }}>{children}</CartContext.Provider>;
+  return <CartContext.Provider value={{ cart, loading, addToCart, updateQuantity, removeFromCart, removeSelectedItems, clearCart, refreshCart, totalCount, subtotal, selectedVariantIds, toggleSelectItem, selectAllItems, selectedSubtotal, selectedItems }}>{children}</CartContext.Provider>;
 };
 
 export const useCart = (): CartContextType => {

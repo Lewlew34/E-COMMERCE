@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
 import { useCart } from '../../../../contexts/CartContext';
 import { useAuth } from '../../../../contexts/AuthContext';
@@ -142,10 +142,12 @@ const getPaymentCardStyle = (active: boolean): React.CSSProperties => ({
 
 export function CheckoutPage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const paypalContainerRef = useRef<HTMLDivElement | null>(null);
-    const { selectedItems, removeSelectedItems } = useCart();
+    const { selectedItems, refreshCart } = useCart();
     const { user } = useAuth();
-    const checkoutItems: CheckoutItem[] = selectedItems.map(item => ({
+    const directCheckoutItems = (location.state as { checkoutItems?: CheckoutItem[] } | null)?.checkoutItems;
+    const checkoutItems: CheckoutItem[] = directCheckoutItems?.length ? directCheckoutItems : selectedItems.map(item => ({
         variantId: item.variantId,
         name: item.product.name,
         price: item.variant.price,
@@ -239,8 +241,6 @@ export function CheckoutPage() {
         0
     );
 
-    const removePurchasedItems = () => removeSelectedItems(checkoutItems.flatMap(item => item.variantId ? [item.variantId] : []));
-
     const saveLocalOrderSnapshot = (orderRecord: any) => {
         try {
             const currentUserStr = localStorage.getItem('currentUser') ||
@@ -300,7 +300,7 @@ export function CheckoutPage() {
             saveLocalOrderSnapshot(paidSnapshot);
             localStorage.setItem('pendingPayPalOrder', JSON.stringify(paidSnapshot));
 
-            removePurchasedItems();
+            await refreshCart();
             setPendingPaypalOrder(null);
             navigate(
                 `/order-success?payment=paypal&status=success&orderCode=${encodeURIComponent(orderCtx.orderCode)}&txnId=${encodeURIComponent(data.captureId || paypalOrderId)}`
@@ -510,7 +510,7 @@ export function CheckoutPage() {
                 return;
             }
 
-            removePurchasedItems();
+            await refreshCart();
             navigate(`/order-success?vnp_ResponseCode=00&vnp_TxnRef=${encodeURIComponent(orderCode)}`);
         } catch (error: any) {
             console.error('Lỗi đặt hàng:', error);

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/config/cors.php';
 require_once dirname(__DIR__) . '/core/auth_guard.php';
+require_once dirname(__DIR__) . '/core/cart_service.php';
 
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
@@ -273,19 +274,7 @@ try {
         'user_id' => $customer['id'],
     ]);
 
-    $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
-    $cartStmt->execute(['user_id' => $customer['id']]);
-    $cartId = $cartStmt->fetchColumn();
-    if ($cartId !== false) {
-        $orderVariants = $pdo->prepare('SELECT DISTINCT variant_id FROM order_items WHERE order_id = :order_id');
-        $orderVariants->execute(['order_id' => $dbOrderId]);
-        $variantIds = array_map('intval', $orderVariants->fetchAll(PDO::FETCH_COLUMN));
-        if ($variantIds) {
-            $marks = implode(',', array_fill(0, count($variantIds), '?'));
-            $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)")
-                ->execute([(int) $cartId, ...$variantIds]);
-        }
-    }
+    remove_order_quantities_from_cart($pdo, (int) $customer['id'], $dbOrderId);
 
     try {
         $payCheck = $pdo->prepare('SELECT id FROM payments WHERE order_id = :order_id ORDER BY id DESC LIMIT 1');
