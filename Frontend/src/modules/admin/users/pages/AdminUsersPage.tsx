@@ -142,7 +142,7 @@ export const AdminUsersPage: React.FC = () => {
                   <td className="py-3.5 pr-4 font-mono text-slate-400">#{u.id}</td>
                   <td className="py-3.5 px-4 flex items-center gap-2.5">
                     <img
-                      src={u.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'}
+                      src={u.avatar || '/avatar-default.svg'}
                       alt=""
                       className="w-7 h-7 rounded-full object-cover border border-slate-200"
                     />

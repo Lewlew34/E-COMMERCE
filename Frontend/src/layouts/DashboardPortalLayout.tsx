@@ -130,9 +130,7 @@ export const DashboardPortalLayout: React.FC<DashboardPortalLayoutProps> = ({
           {/* User Profile Info */}
           <div className="flex items-center gap-2.5 px-2 py-1">
             <img
-              src={user?.avatar || (portalRole === 'admin' 
-                ? 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100'
-                : 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100')}
+              src={user?.avatar || '/avatar-default.svg'}
               alt={user?.name || 'User'}
               className={`w-8 h-8 rounded-full border object-cover shrink-0 ${
                 portalRole === 'admin' ? 'border-amber-500/50' : 'border-emerald-500/50'

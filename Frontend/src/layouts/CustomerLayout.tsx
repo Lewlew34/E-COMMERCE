@@ -196,28 +196,42 @@ export const CustomerLayout: React.FC = () => {
 
             {/* Tài khoản */}
             {user ? (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left"
+              <div className="relative flex items-center gap-1">
+                <Link
+                  to="/account"
+                  onClick={() => setShowUserMenu(false)}
+                  className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors text-left"
+                  aria-label="Xem thông tin tài khoản"
                 >
                   <div className="w-9 h-9 rounded-full bg-slate-200 overflow-hidden ring-2 ring-blue-500/20">
-                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    <img src={user.avatar || '/avatar-default.svg'} alt={user.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="hidden sm:block text-left">
                     <div className="text-xs font-semibold text-slate-800 line-clamp-1">{user.name}</div>
                     <div className="text-[10px] text-slate-500 uppercase font-medium">{user.role}</div>
                   </div>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  aria-label="Mở menu tài khoản"
+                  aria-expanded={showUserMenu}
+                  className="p-1 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+                >
                   <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
                 </button>
 
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-xs">
-                    <div className="px-4 py-2 border-b border-slate-100">
+                  <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 text-xs">
+                    <Link
+                      to="/account"
+                      onClick={() => setShowUserMenu(false)}
+                      className="block px-4 py-2 border-b border-slate-100 hover:bg-slate-50"
+                    >
                       <div className="font-bold text-slate-900">{user.name}</div>
                       <div className="text-[11px] text-slate-400 truncate">{user.email}</div>
-                    </div>
+                      <div className="mt-1 text-[11px] font-semibold text-blue-600">Xem thông tin tài khoản</div>
+                    </Link>
                     {isAdmin && (
                       <Link
                         to="/admin/dashboard"
@@ -249,7 +263,7 @@ export const CustomerLayout: React.FC = () => {
                     </Link>
 
                     <Link
-                      to="/customer/orders"
+                      to="/cart"
                       onClick={() => setShowUserMenu(false)}
                       className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50 text-slate-700"
                     >

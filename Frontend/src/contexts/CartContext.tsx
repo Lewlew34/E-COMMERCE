@@ -26,11 +26,11 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 const GUEST_CART_KEY = 'techmart_guest_cart';
 const SELECTED_KEY = 'techmart_selected_cart_variants';
+const GUEST_CART_KEYS = [GUEST_CART_KEY, 'techmart_cart_items', 'cart_default_user'];
 
 function readGuestCart(): CartItem[] {
   try {
-    const candidates = [GUEST_CART_KEY, 'techmart_cart_items', 'cart_default_user'];
-    const raw = candidates
+    const raw = GUEST_CART_KEYS
       .map(key => {
         try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
       })
@@ -48,10 +48,15 @@ function readGuestCart(): CartItem[] {
   }
 }
 
+function clearGuestCartStorage() {
+  GUEST_CART_KEYS.forEach(key => localStorage.removeItem(key));
+}
+
 function writeGuestCart(items: CartItem[]) {
   const raw = items.map(({ id, variantId, quantity }) => ({ id, variantId, quantity }));
   localStorage.setItem(GUEST_CART_KEY, JSON.stringify(raw));
   localStorage.setItem('techmart_cart_items', JSON.stringify(raw));
+  localStorage.removeItem('cart_default_user');
 }
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -99,8 +104,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         let serverItems: CartItem[];
         if (latestGuestItems.length) {
           serverItems = await customerCartApi.merge(latestGuestItems.map(({ variantId, quantity }) => ({ variantId, quantity })));
-          localStorage.removeItem(GUEST_CART_KEY);
-          localStorage.removeItem('techmart_cart_items');
+          clearGuestCartStorage();
         } else {
           serverItems = await customerCartApi.getItems();
         }

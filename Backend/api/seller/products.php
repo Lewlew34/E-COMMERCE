@@ -211,34 +211,30 @@ if ($method === 'POST') {
 // 3. PUT: Cập nhật thông tin sản phẩm và biến thể
 if ($method === 'PUT') {
     $productId = require_positive_int($_GET['id'] ?? null, 'ID sản phẩm');
-    $body = parse_product_input(get_json_body());
+    $requestBody = get_json_body();
+    $body = parse_product_input($requestBody);
     $pdo->beginTransaction();
 
     try {
-        $owner = $pdo->prepare('SELECT id FROM products WHERE id = :id AND seller_id = :seller_id FOR UPDATE');
+        $owner = $pdo->prepare(
+            'SELECT id, name, brand_id, category_id, description, specifications
+             FROM products WHERE id = :id AND seller_id = :seller_id FOR UPDATE'
+        );
         $owner->execute(['id' => $productId, 'seller_id' => $sellerId]);
-        if (!$owner->fetch()) {
+        $existingProduct = $owner->fetch();
+        if (!$existingProduct) {
             $pdo->rollBack();
             json_error('Không tìm thấy sản phẩm thuộc gian hàng của bạn.', 404);
         }
 
-        $pdo->prepare(
-            'UPDATE products SET name = :name, brand_id = :brand_id, category_id = :category_id,
-             description = :description, specifications = :specifications, status = "pending_review"
-             WHERE id = :id AND seller_id = :seller_id'
-        )->execute([
-            'name' => $body['name'],
-            'brand_id' => $body['brand_id'],
-            'category_id' => $body['category_id'],
-            'description' => $body['description'],
-            'specifications' => $body['specifications'],
-            'id' => $productId,
-            'seller_id' => $sellerId,
-        ]);
+        if (!array_key_exists('specifications', $requestBody)) {
+            $body['specifications'] = (string) ($existingProduct['specifications'] ?? '{}');
+        }
 
         $variantId = $body['variantId'] ?? require_positive_int($_GET['variantId'] ?? null, 'ID biến thể');
         $variantStmt = $pdo->prepare(
-            'SELECT id, stock_quantity FROM product_variants WHERE product_id = :product_id AND id = :variant_id FOR UPDATE'
+            'SELECT id, sku, price, compare_at_price, stock_quantity, attributes, image
+             FROM product_variants WHERE product_id = :product_id AND id = :variant_id FOR UPDATE'
         );
         $variantStmt->execute(['product_id' => $productId, 'variant_id' => $variantId]);
         $variant = $variantStmt->fetch();
@@ -247,6 +243,37 @@ if ($method === 'PUT') {
             $pdo->rollBack();
             json_error('Sản phẩm chưa có biến thể để cập nhật.', 409);
         }
+
+        $existingSpecifications = json_decode((string) ($existingProduct['specifications'] ?? '{}'), true);
+        $requestedSpecifications = json_decode((string) $body['specifications'], true);
+        $existingAttributes = json_decode((string) ($variant['attributes'] ?? '{}'), true);
+        $requestedAttributes = json_decode((string) $body['attributes'], true);
+        $catalogChanged = $existingProduct['name'] !== $body['name']
+            || (int) $existingProduct['brand_id'] !== $body['brand_id']
+            || (int) $existingProduct['category_id'] !== $body['category_id']
+            || (string) ($existingProduct['description'] ?? '') !== $body['description']
+            || $existingSpecifications !== $requestedSpecifications
+            || (string) $variant['sku'] !== $body['sku']
+            || (float) $variant['price'] !== $body['price']
+            || ($variant['compare_at_price'] === null ? null : (float) $variant['compare_at_price']) !== $body['compare_price']
+            || $existingAttributes !== $requestedAttributes
+            || (string) ($variant['image'] ?? '') !== $body['image'];
+
+        $updateProductSql = 'UPDATE products SET name = :name, brand_id = :brand_id, category_id = :category_id,
+             description = :description, specifications = :specifications';
+        if ($catalogChanged) {
+            $updateProductSql .= ', status = "pending_review"';
+        }
+        $updateProductSql .= ' WHERE id = :id AND seller_id = :seller_id';
+        $pdo->prepare($updateProductSql)->execute([
+            'name' => $body['name'],
+            'brand_id' => $body['brand_id'],
+            'category_id' => $body['category_id'],
+            'description' => $body['description'],
+            'specifications' => $body['specifications'],
+            'id' => $productId,
+            'seller_id' => $sellerId,
+        ]);
 
         $pdo->prepare(
             'UPDATE product_variants SET sku = :sku, price = :price, compare_at_price = :compare_price,

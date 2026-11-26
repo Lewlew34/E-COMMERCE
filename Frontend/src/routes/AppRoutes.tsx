@@ -19,6 +19,7 @@ import { CustomerHomePage } from '../modules/customer/home/pages/CustomerHomePag
 import { CatalogPage } from '../modules/customer/catalog/pages/CatalogPage';
 import { ProductDetailPage } from '../modules/customer/product/pages/ProductDetailPage';
 import { CartPage } from '../modules/customer/cart/pages/CartPage';
+import { CustomerAccountPage } from '../modules/customer/account/pages/CustomerAccountPage';
 import { CheckoutPage } from '../modules/customer/checkout/pages/CheckoutPage';
 import { OrderSuccessPage } from '../modules/customer/checkout/pages/OrderSuccessPage';
 import { OrderFailedPage } from '../modules/customer/checkout/pages/OrderFailedPage';
@@ -64,6 +65,7 @@ export const AppRoutes: React.FC = () => {
 
         {/* 2.2 Các trang bảo vệ: Bắt buộc đăng nhập tài khoản */}
         <Route element={<ProtectedRoute allowedRoles={['customer', 'staff', 'seller', 'admin']} />}>
+          <Route path="account" element={<CustomerAccountPage />} />
           <Route path="cart" element={<CartPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="order-success" element={<OrderSuccessPage />} />
