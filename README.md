@@ -137,7 +137,7 @@ E-COMMERCE/
 
 ## 🗄️ Cấu Trúc Cơ Sở Dữ Liệu (`techecommercedb`)
 
-Hệ thống bao gồm 18 bảng quan hệ chuẩn hóa:
+Sau khi chạy đầy đủ các migration, hệ thống có 21 bảng. Hai bảng `conversations` và `messages` là cấu trúc chat cũ; các API hiện tại dùng `chat_conversations` và `chat_messages`.
 
 | STT | Bảng Cơ Sở Dữ Liệu | Vai Trò & Nghiệp Vụ |
 | :---: | :--- | :--- |
@@ -159,6 +159,9 @@ Hệ thống bao gồm 18 bảng quan hệ chuẩn hóa:
 | 16 | `seller_order_status` | Trạng thái xử lý và mã vận đơn riêng theo từng gian hàng trong đơn |
 | 17 | `chat_conversations` | Hội thoại Live Chat riêng biệt giữa khách hàng và từng shop |
 | 18 | `chat_messages` | Nội dung tin nhắn chat, ảnh đính kèm, thẻ chia sẻ sản phẩm / đơn hàng |
+| 19 | `conversations` | Bảng hội thoại chat cũ, chưa được API hiện tại sử dụng |
+| 20 | `messages` | Bảng tin nhắn chat cũ, chưa được API hiện tại sử dụng |
+| 21 | `transactions` | Chi tiết giao dịch từ cổng thanh toán, gồm mã giao dịch và tiền tệ |
 
 ---
 
@@ -184,8 +187,15 @@ extension=fileinfo
 ### 3. Thiết lập Cơ sở dữ liệu MySQL
 1. Mở **XAMPP Control Panel**, bấm **Start** cả **Apache** và **MySQL**.
 2. Mở trình duyệt truy cập phpMyAdmin: `http://localhost/phpmyadmin`.
-3. Tạo một Database mới có tên: **`techecommercedb`** (Collation: `utf8mb4_unicode_ci`).
-4. Nhấn tab **Import**, chọn file `techecommercedb.sql` (hoặc chạy các file trong thư mục `Backend/migrations/`) để khởi tạo toàn bộ 18 bảng CSDL.
+3. Tạo một Database mới có tên: **`techecommercedb`**. Các bảng trong schema dùng collation `utf8mb4_general_ci`.
+4. Với database mới, chạy lần lượt các file sau trong phpMyAdmin:
+   1. `Backend/migrations/0000_base_schema.sql`
+   2. `Backend/migrations/20261118_shop_chat.sql`
+   3. `Backend/migrations/20261118_chat_enhancements.sql`
+   4. `Backend/migrations/20261118_chat_replies_and_delete.sql`
+   5. `Backend/migrations/20261126_transactions.sql`
+
+   File baseline chỉ tạo cấu trúc, không chèn dữ liệu mẫu; database mới sẽ chưa có sản phẩm hay tài khoản demo. Với database đã được tạo từ `techecommercedb.sql`, **không chạy lại baseline hoặc ba migration chat**; chỉ chạy migration `20261126_transactions.sql` nếu bảng `transactions` chưa tồn tại. Hãy sao lưu database trước khi áp dụng migration.
 
 ### 4. Cấu hình file môi trường `.env`
 Tạo một file có tên **`.env`** tại thư mục gốc `E-COMMERCE/` (sao chép nội dung từ `.env.example`):

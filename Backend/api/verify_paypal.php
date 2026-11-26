@@ -319,7 +319,7 @@ try {
             'order_id' => $dbOrderId,
             'gateway' => 'PayPal',
             'transaction_id' => $captureId,
-            'amount' => $amountToSave,
+            'amount' => $grossAmount > 0 ? $grossAmount : $amountToSave,
             'currency' => $currency,
             'payer_email' => $payerEmail,
             'status' => 'success',
