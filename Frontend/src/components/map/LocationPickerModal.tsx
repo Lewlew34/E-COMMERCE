@@ -67,18 +67,17 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);
+  const geocodeRequestRef = useRef(0);
+  const nominatimQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const nominatimLastRequestAt = useRef(0);
 
   const [searchQuery, setSearchQuery] = useState(initialAddress);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [hasResolvedCurrentCoord, setHasResolvedCurrentCoord] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  const [currentCoord, setCurrentCoord] = useState<{ lat: number; lng: number }>({
-    lat: initialLat,
-    lng: initialLng
-  });
 
   const [resolvedLocation, setResolvedLocation] = useState<LocationResult>({
     address: initialAddress,
@@ -90,16 +89,30 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     lng: initialLng
   });
 
-  // 1. Phân giải toạ độ thành thông tin địa chỉ tiếng Việt qua OpenStreetMap Nominatim
+  const requestNominatim = <T,>(url: string): Promise<T> => {
+    const request = nominatimQueueRef.current.then(async () => {
+      const waitMs = Math.max(0, 1100 - (Date.now() - nominatimLastRequestAt.current));
+      if (waitMs > 0) await new Promise(resolve => window.setTimeout(resolve, waitMs));
+      nominatimLastRequestAt.current = Date.now();
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`OpenStreetMap trả về lỗi ${response.status}`);
+      return response.json() as Promise<T>;
+    });
+    nominatimQueueRef.current = request.then(() => undefined, () => undefined);
+    return request;
+  };
+
+  // OpenStreetMap Nominatim is queried one request at a time with at least 1.1 seconds between requests.
   const reverseGeocode = async (lat: number, lng: number) => {
+    const requestId = ++geocodeRequestRef.current;
     setIsGeocoding(true);
+    setHasResolvedCurrentCoord(false);
     setErrorMessage(null);
     try {
-      const response = await fetch(
+      const data = await requestNominatim<any>(
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1&accept-language=vi`
       );
-      if (!response.ok) throw new Error('Không thể lấy địa chỉ từ toạ độ');
-      const data = await response.json();
+      if (requestId !== geocodeRequestRef.current) return;
 
       const addr = data.address || {};
       const road = addr.road || addr.neighbourhood || addr.suburb || '';
@@ -120,17 +133,41 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
       setResolvedLocation(parsedResult);
     } catch (err) {
+      if (requestId !== geocodeRequestRef.current) return;
       console.warn('Lỗi reverse geocode:', err);
-      setResolvedLocation(prev => ({
-        ...prev,
+      setErrorMessage('Không đọc được tên địa chỉ. Bạn vẫn có thể xác nhận tọa độ; sau đó hãy tự nhập địa chỉ vào biểu mẫu.');
+      setResolvedLocation({
+        address: '',
+        ward: '',
+        district: '',
+        city: '',
         lat,
         lng,
         fullAddress: `Toạ độ: ${lat.toFixed(5)}, ${lng.toFixed(5)}`
-      }));
+      });
     } finally {
-      setIsGeocoding(false);
+      if (requestId === geocodeRequestRef.current) {
+        setIsGeocoding(false);
+        setHasResolvedCurrentCoord(true);
+      }
     }
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const coordinate = { lat: initialLat, lng: initialLng };
+    setSearchQuery(initialAddress);
+    setErrorMessage(null);
+    setHasResolvedCurrentCoord(false);
+    setResolvedLocation({
+      address: initialAddress,
+      ward: '',
+      district: '',
+      city: '',
+      fullAddress: initialAddress || 'Đang xác định địa chỉ...',
+      ...coordinate
+    });
+  }, [isOpen, initialAddress, initialLat, initialLng]);
 
   // 2. Khởi tạo bản đồ khi modal mở
   useEffect(() => {
@@ -141,7 +178,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
       if (!mapInstanceRef.current) {
         const map = L.map(mapContainerRef.current, {
-          center: [currentCoord.lat, currentCoord.lng],
+          center: [initialLat, initialLng],
           zoom: 15,
           zoomControl: true
         });
@@ -154,20 +191,18 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
         // Marker có thể kéo thả
         const pinIcon = createCustomPinIcon();
-        const marker = L.marker([currentCoord.lat, currentCoord.lng], {
+        const marker = L.marker([initialLat, initialLng], {
           draggable: true,
           icon: pinIcon
         }).addTo(map);
 
         marker.on('dragend', () => {
           const pos = marker.getLatLng();
-          setCurrentCoord({ lat: pos.lat, lng: pos.lng });
           reverseGeocode(pos.lat, pos.lng);
         });
 
         map.on('click', (e: L.LeafletMouseEvent) => {
           marker.setLatLng(e.latlng);
-          setCurrentCoord({ lat: e.latlng.lat, lng: e.latlng.lng });
           reverseGeocode(e.latlng.lat, e.latlng.lng);
         });
 
@@ -175,7 +210,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
         markerRef.current = marker;
 
         // Tự động phân giải địa chỉ ban đầu
-        reverseGeocode(currentCoord.lat, currentCoord.lng);
+        reverseGeocode(initialLat, initialLng);
       } else {
         mapInstanceRef.current.invalidateSize();
       }
@@ -184,7 +219,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     return () => {
       clearTimeout(timer);
     };
-  }, [isOpen]);
+  }, [isOpen, initialLat, initialLng]);
 
   // Dọn dẹp map khi đóng modal hoàn toàn
   useEffect(() => {
@@ -197,7 +232,6 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
   // Di chuyển bản đồ đến toạ độ mới
   const moveToLocation = (lat: number, lng: number, zoomLevel = 16) => {
-    setCurrentCoord({ lat, lng });
     if (mapInstanceRef.current && markerRef.current) {
       mapInstanceRef.current.flyTo([lat, lng], zoomLevel, { duration: 1.2 });
       markerRef.current.setLatLng([lat, lng]);
@@ -215,13 +249,11 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
     setSearchResults([]);
 
     try {
-      const response = await fetch(
+      const data = await requestNominatim<any[]>(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
           searchQuery
         )}&countrycodes=vn&limit=5&addressdetails=1&accept-language=vi`
       );
-      if (!response.ok) throw new Error('Tìm kiếm không thành công');
-      const data = await response.json();
 
       if (data.length === 0) {
         setErrorMessage('Không tìm thấy địa chỉ phù hợp. Vui lòng nhập chi tiết hơn (ví dụ: kèm Quận, Thành phố).');
@@ -273,6 +305,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
 
   // Hoàn tất chọn địa chỉ
   const handleConfirm = () => {
+    if (!hasResolvedCurrentCoord || isGeocoding) return;
     onSelectLocation(resolvedLocation);
     onClose();
   };
@@ -290,7 +323,7 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-slate-800 text-sm sm:text-base leading-tight">{title}</h3>
-              <p className="text-xs text-slate-500">Kéo ghim hoặc click trên bản đồ để xác định vị trí chính xác</p>
+              <p className="text-xs text-slate-500">Bản đồ OpenStreetMap miễn phí. Kéo ghim hoặc click để chọn vị trí; vui lòng kiểm tra địa chỉ trước khi xác nhận.</p>
             </div>
           </div>
           <button
@@ -411,7 +444,8 @@ export const LocationPickerModal: React.FC<LocationPickerModalProps> = ({
             <button
               type="button"
               onClick={handleConfirm}
-              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              disabled={!hasResolvedCurrentCoord || isGeocoding}
+              className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer disabled:cursor-not-allowed"
             >
               <Check className="w-4 h-4" />
               <span>Xác nhận địa chỉ này</span>

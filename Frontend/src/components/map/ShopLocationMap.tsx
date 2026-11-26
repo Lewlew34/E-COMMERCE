@@ -78,13 +78,19 @@ export const ShopLocationMap: React.FC<ShopLocationProps> = ({
         icon: createShopPinIcon()
       }).addTo(map);
 
-      marker.bindPopup(`
-        <div style="font-family: inherit; padding: 4px; max-width: 240px;">
-          <h4 style="font-weight: 700; color: #1e293b; font-size: 14px; margin: 0 0 4px 0;">${shopName}</h4>
-          <p style="font-size: 12px; color: #64748b; margin: 0 0 6px 0; line-height: 1.4;">${address}</p>
-          <div style="font-size: 11px; color: #2563eb; font-weight: 600;">Hotline: ${phone}</div>
-        </div>
-      `);
+      const popup = document.createElement('div');
+      popup.style.cssText = 'font-family: inherit; padding: 4px; max-width: 240px;';
+      const title = document.createElement('h4');
+      title.style.cssText = 'font-weight: 700; color: #1e293b; font-size: 14px; margin: 0 0 4px 0;';
+      title.textContent = shopName;
+      const location = document.createElement('p');
+      location.style.cssText = 'font-size: 12px; color: #64748b; margin: 0 0 6px 0; line-height: 1.4;';
+      location.textContent = address;
+      const hotline = document.createElement('div');
+      hotline.style.cssText = 'font-size: 11px; color: #2563eb; font-weight: 600;';
+      hotline.textContent = `Hotline: ${phone}`;
+      popup.append(title, location, hotline);
+      marker.bindPopup(popup);
 
       mapInstanceRef.current = map;
       setTimeout(() => {
@@ -112,7 +118,7 @@ export const ShopLocationMap: React.FC<ShopLocationProps> = ({
   };
 
   const openGoogleMapsDirections = () => {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank');
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`, '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -123,7 +129,7 @@ export const ShopLocationMap: React.FC<ShopLocationProps> = ({
           <div ref={mapContainerRef} className="w-full h-full min-h-[380px] z-10" />
           <div className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-slate-200/80 shadow-xs text-xs font-semibold text-slate-700 flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Showroom đang hoạt động</span>
+            <span>OpenStreetMap · Showroom đang hoạt động</span>
           </div>
         </div>
 

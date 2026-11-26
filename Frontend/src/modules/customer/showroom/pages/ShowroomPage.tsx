@@ -47,7 +47,8 @@ export const ShowroomPage: React.FC = () => {
   const openDirections = () => {
     window.open(
       `https://www.google.com/maps/dir/?api=1&destination=${showroom.lat},${showroom.lng}`,
-      '_blank'
+      '_blank',
+      'noopener,noreferrer'
     );
   };
 

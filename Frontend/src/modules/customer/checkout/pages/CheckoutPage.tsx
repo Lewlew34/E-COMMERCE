@@ -207,6 +207,7 @@ export function CheckoutPage() {
     const handleCityChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         const selectedCity = e.target.value;
         const districts = LOCATION_DATA[selectedCity] || [];
+        setSelectedMapLocation(null);
         setShippingInfo(prev => ({
             ...prev,
             city: selectedCity,
@@ -215,6 +216,7 @@ export function CheckoutPage() {
     };
 
     const handleDistrictChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setSelectedMapLocation(null);
         setShippingInfo(prev => ({
             ...prev,
             district: e.target.value
@@ -223,42 +225,12 @@ export function CheckoutPage() {
 
     const handleMapLocationSelect = (loc: LocationResult) => {
         setSelectedMapLocation(loc);
-
-        // Khớp thành phố trong danh sách hệ thống
-        let matchedCity = shippingInfo.city;
-        const lowerSearch = (loc.city + ' ' + loc.fullAddress).toLowerCase();
-        for (const cityName of CITY_LIST) {
-            const simpleName = cityName.toLowerCase().replace('tp.', '').trim();
-            if (lowerSearch.includes(simpleName)) {
-                matchedCity = cityName;
-                break;
-            }
-        }
-
-        // Khớp quận/huyện trong danh sách hệ thống
-        const availableDistricts = LOCATION_DATA[matchedCity] || [];
-        let matchedDistrict = availableDistricts[0] || shippingInfo.district;
-        const lowerDistrictSearch = (loc.district + ' ' + loc.fullAddress).toLowerCase();
-        for (const d of availableDistricts) {
-            const simpleD = d.toLowerCase().replace('quận', '').replace('huyện', '').replace('tp.', '').trim();
-            if (lowerDistrictSearch.includes(simpleD)) {
-                matchedDistrict = d;
-                break;
-            }
-        }
-
-        // Địa chỉ chi tiết (kèm tên đường, phường)
-        let streetAddress = loc.address;
-        if (loc.ward && !streetAddress.toLowerCase().includes(loc.ward.toLowerCase())) {
-            streetAddress = `${streetAddress}, ${loc.ward}`;
-        }
-
         setShippingInfo(prev => ({
             ...prev,
-            city: matchedCity,
-            district: matchedDistrict,
+            city: loc.city || prev.city,
+            district: loc.district || prev.district,
             ward: loc.ward || prev.ward,
-            address: streetAddress || loc.fullAddress || prev.address
+            address: loc.fullAddress.startsWith('Toạ độ:') ? '' : (loc.address || loc.fullAddress || prev.address)
         }));
     };
 
@@ -452,7 +424,8 @@ export function CheckoutPage() {
                         addressLine: shippingInfo.address.trim(),
                         ward: shippingInfo.ward.trim(),
                         district: shippingInfo.district.trim(),
-                        city: shippingInfo.city.trim()
+                        city: shippingInfo.city.trim(),
+                        ...(selectedMapLocation ? { lat: selectedMapLocation.lat, lng: selectedMapLocation.lng } : {})
                     },
                     paymentMethod: backendPaymentMethod
                 })
@@ -546,7 +519,8 @@ export function CheckoutPage() {
         }
     };
 
-    const districtOptions = LOCATION_DATA[shippingInfo.city] || [];
+    const cityOptions = [...new Set([...CITY_LIST, shippingInfo.city].filter(Boolean))];
+    const districtOptions = [...new Set([...(LOCATION_DATA[shippingInfo.city] || []), shippingInfo.district].filter(Boolean))];
     const isSubmitDisabled = loading || verifyingPaypal || checkoutItems.length === 0;
 
     const getDynamicInputStyle = (fieldKey: string): React.CSSProperties => ({
@@ -735,7 +709,7 @@ export function CheckoutPage() {
                                             required
                                             style={getDynamicSelectStyle('city')}
                                         >
-                                            {CITY_LIST.map(cityName => (
+                                            {cityOptions.map(cityName => (
                                                 <option key={cityName} value={cityName}>
                                                     {cityName}
                                                 </option>
@@ -769,7 +743,10 @@ export function CheckoutPage() {
                                         value={shippingInfo.address}
                                         onFocus={() => setFocusedField('address')}
                                         onBlur={() => setFocusedField(null)}
-                                        onChange={e => setShippingInfo({ ...shippingInfo, address: e.target.value })}
+                                        onChange={e => {
+                                            setSelectedMapLocation(null);
+                                            setShippingInfo({ ...shippingInfo, address: e.target.value });
+                                        }}
                                         placeholder="Số nhà, tên đường, tòa nhà..."
                                         required
                                         style={getDynamicInputStyle('address')}
@@ -1037,6 +1014,8 @@ export function CheckoutPage() {
                 onClose={() => setShowMapModal(false)}
                 onSelectLocation={handleMapLocationSelect}
                 initialAddress={shippingInfo.address ? `${shippingInfo.address}, ${shippingInfo.district}, ${shippingInfo.city}` : undefined}
+                initialLat={selectedMapLocation?.lat}
+                initialLng={selectedMapLocation?.lng}
                 title="Chọn vị trí nhận hàng chính xác"
             />
         </div>

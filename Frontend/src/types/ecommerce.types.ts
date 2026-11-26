@@ -66,6 +66,8 @@ export interface UserAddress {
   district?: string;
   city: string;
   isDefault?: boolean;
+  lat?: number;
+  lng?: number;
 }
 
 export interface CartItem {

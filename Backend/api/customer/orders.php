@@ -130,6 +130,18 @@ if ($action === 'create' && $method === 'POST') {
         }
     }
 
+    $hasLatitude = isset($address['lat']) && $address['lat'] !== '';
+    $hasLongitude = isset($address['lng']) && $address['lng'] !== '';
+    if ($hasLatitude !== $hasLongitude) {
+        json_error('Tọa độ địa chỉ cần có đủ cả vĩ độ và kinh độ.', 422);
+    }
+    $latitude = $hasLatitude ? filter_var($address['lat'], FILTER_VALIDATE_FLOAT) : null;
+    $longitude = $hasLongitude ? filter_var($address['lng'], FILTER_VALIDATE_FLOAT) : null;
+    if ($hasLatitude && ($latitude === false || $longitude === false
+        || $latitude < -90 || $latitude > 90 || $longitude < -180 || $longitude > 180)) {
+        json_error('Tọa độ địa chỉ không hợp lệ.', 422);
+    }
+
     $pdo->beginTransaction();
     $lines = [];
     $subtotal = 0.0;
@@ -199,6 +211,10 @@ if ($action === 'create' && $method === 'POST') {
         'district' => trim((string) ($address['district'] ?? '')),
         'city' => trim((string) $address['city']),
     ];
+    if ($hasLatitude) {
+        $addressSnapshot['lat'] = (float) $latitude;
+        $addressSnapshot['lng'] = (float) $longitude;
+    }
 
     $insertOrder = $pdo->prepare(
         'INSERT INTO orders (user_id, order_code, total_amount, shipping_fee, final_amount,
