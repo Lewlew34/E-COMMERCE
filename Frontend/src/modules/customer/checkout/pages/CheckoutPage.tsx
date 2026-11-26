@@ -68,31 +68,6 @@ const LOCATION_DATA: Record<string, string[]> = {
 
 const CITY_LIST = Object.keys(LOCATION_DATA);
 
-function getAuthToken(): string {
-    const keys = ['token', 'authToken', 'accessToken', 'jwt', 'auth_token'];
-    for (const key of keys) {
-        const val = localStorage.getItem(key);
-        if (val && val.trim() !== '') {
-            return val.replace(/^Bearer\s+/i, '').trim();
-        }
-    }
-    const userKeys = ['currentUser', 'user', 'auth_user', 'loggedUser'];
-    for (const uKey of userKeys) {
-        const raw = localStorage.getItem(uKey);
-        if (!raw) continue;
-        try {
-            const parsed = JSON.parse(raw);
-            const embedded = parsed?.token || parsed?.accessToken || parsed?.authToken;
-            if (typeof embedded === 'string' && embedded.trim() !== '') {
-                return embedded.replace(/^Bearer\s+/i, '').trim();
-            }
-        } catch {
-            // Bỏ qua nếu không phải JSON
-        }
-    }
-    return '';
-}
-
 function resolveVariantId(item: any, fallbackCart: any[], index: number): number | undefined {
     const candidates = [
         item?.variantId,
@@ -383,6 +358,7 @@ export function CheckoutPage() {
         try {
             const res = await fetch(`${API_BASE}/verify_paypal.php`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     orderID: paypalOrderId,
@@ -502,13 +478,9 @@ export function CheckoutPage() {
         setLoading(true);
 
         try {
-            const token = getAuthToken();
             const headers: Record<string, string> = {
                 'Content-Type': 'application/json'
             };
-            if (token) {
-                headers['Authorization'] = `Bearer ${token}`;
-            }
 
             const backendPaymentMethod =
                 paymentMethod === 'vnpay'
@@ -519,6 +491,7 @@ export function CheckoutPage() {
 
             const createRes = await fetch(`${API_BASE}/customer/orders.php?action=create`, {
                 method: 'POST',
+                credentials: 'include',
                 headers,
                 body: JSON.stringify({
                     items: checkoutItems.map(item => ({
@@ -583,6 +556,7 @@ export function CheckoutPage() {
                 localStorage.setItem('pendingVNPayOrder', JSON.stringify(orderData));
                 const vnpRes = await fetch(`${API_BASE}/vnpay_create_payment.php`, {
                     method: 'POST',
+                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         orderCode,

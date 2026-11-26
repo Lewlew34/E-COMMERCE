@@ -4,17 +4,24 @@ declare(strict_types=1);
 error_reporting(E_ALL & ~E_NOTICE & ~E_DEPRECATED);
 date_default_timezone_set('Asia/Ho_Chi_Minh');
 
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
-header('Content-Type: application/json; charset=utf-8');
-
+require_once dirname(__DIR__) . '/config/cors.php';
 require_once __DIR__ . '/vnpay_config.php';
 require_once dirname(__DIR__) . '/config/database.php';
+require_once dirname(__DIR__) . '/core/response.php';
+require_once dirname(__DIR__) . '/core/auth_guard.php';
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    json_error('Phương thức yêu cầu không hợp lệ.', 405);
+}
+
+$customer = require_customer();
+$customerId = $customer['id'];
+$customerStatus = get_db_connection()->prepare('SELECT role, status FROM users WHERE id = :id LIMIT 1');
+$customerStatus->execute(['id' => $customerId]);
+$customerRecord = $customerStatus->fetch();
+if (!$customerRecord || $customerRecord['role'] !== 'customer' || $customerRecord['status'] !== 'active') {
+    json_error('Tài khoản khách hàng hiện không hoạt động.', 403);
+}
 
 $rawInput = file_get_contents('php://input');
 $data = json_decode($rawInput ?: '', true);
@@ -23,29 +30,29 @@ if (!is_array($data)) {
 }
 
 $orderCode = trim((string) ($data['orderCode'] ?? $data['order_code'] ?? ''));
-$amount = isset($data['amount']) ? (int) round((float) $data['amount']) : 0;
-
-if ($orderCode !== '') {
-    try {
-        $pdo = get_db_connection();
-        $stmt = $pdo->prepare('SELECT id, final_amount FROM orders WHERE order_code = :order_code LIMIT 1');
-        $stmt->execute(['order_code' => $orderCode]);
-        $order = $stmt->fetch();
-        if ($order && (float) $order['final_amount'] > 0) {
-            $amount = (int) round((float) $order['final_amount']);
-        }
-    } catch (Throwable $e) {
-        // Bỏ qua nếu chưa tìm thấy đơn trong DB
-    }
+if ($orderCode === '') {
+    json_error('Thiếu mã đơn hàng.', 422);
 }
 
+$pdo = get_db_connection();
+$stmt = $pdo->prepare(
+    'SELECT id, final_amount, payment_status, order_status
+     FROM orders
+     WHERE order_code = :order_code AND user_id = :user_id
+     LIMIT 1'
+);
+$stmt->execute(['order_code' => $orderCode, 'user_id' => $customerId]);
+$order = $stmt->fetch();
+if (!$order) {
+    json_error('Không tìm thấy đơn hàng của bạn.', 404);
+}
+if ($order['payment_status'] !== 'pending' || $order['order_status'] !== 'pending') {
+    json_error('Đơn hàng không còn đủ điều kiện thanh toán.', 409);
+}
+
+$amount = (int) round((float) $order['final_amount']);
 if ($amount <= 0) {
-    http_response_code(422);
-    echo json_encode([
-        'code' => '422',
-        'message' => 'Số tiền thanh toán không hợp lệ.',
-    ], JSON_UNESCAPED_UNICODE);
-    exit;
+    json_error('Số tiền thanh toán không hợp lệ.', 422);
 }
 
 $safeOrderCode = preg_replace('/[^A-Za-z0-9_-]/', '', $orderCode);

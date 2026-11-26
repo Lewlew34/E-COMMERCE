@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/config/cors.php';
 require_once dirname(__DIR__, 2) . '/config/database.php';
 require_once dirname(__DIR__, 2) . '/core/response.php';
+require_once dirname(__DIR__, 2) . '/core/auth_guard.php';
 
 $pdo = get_db_connection();
 $action = $_GET['action'] ?? 'list';
@@ -97,69 +98,13 @@ function resolve_effective_order_status(PDO $pdo, int $orderId, ?string $baseOrd
     return $baseNormalized;
 }
 
-$userId = null;
-
-// 1. Thử lấy user từ Bearer token nếu có trong các bảng token/session phổ biến
-$authHeader = $_SERVER['HTTP_AUTHORIZATION']
-    ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
-    ?? (function_exists('getallheaders') ? (getallheaders()['Authorization'] ?? getallheaders()['authorization'] ?? '') : '');
-
-if (preg_match('/Bearer\s+(.+)/i', (string) $authHeader, $matches)) {
-    $token = trim($matches[1]);
-    if ($token !== '' && !str_starts_with($token, 'mock_token_')) {
-        foreach (
-            [
-                'SELECT user_id FROM user_tokens WHERE token = :t LIMIT 1',
-                'SELECT user_id FROM personal_access_tokens WHERE token = :t LIMIT 1',
-                'SELECT id AS user_id FROM users WHERE api_token = :t LIMIT 1',
-            ] as $sqlToken
-        ) {
-            try {
-                $st = $pdo->prepare($sqlToken);
-                $st->execute(['t' => $token]);
-                $row = $st->fetch();
-                if ($row && !empty($row['user_id'])) {
-                    $userId = (int) $row['user_id'];
-                    break;
-                }
-            } catch (\Throwable $e) {
-                // Bỏ qua nếu bảng/cột token không tồn tại ở schema hiện tại
-            }
-        }
-    }
-}
-
-// 2. Fallback cho môi trường test local khi không có token thật
-if ($userId === null) {
-    $candidateId = filter_var(
-        $rawBody['userId'] ?? ($rawBody['user_id'] ?? ($_GET['userId'] ?? null)),
-        FILTER_VALIDATE_INT
-    );
-
-    if ($candidateId !== false && $candidateId > 0) {
-        $checkUser = $pdo->prepare('SELECT id FROM users WHERE id = :id LIMIT 1');
-        $checkUser->execute(['id' => $candidateId]);
-        $found = $checkUser->fetch();
-        if ($found) {
-            $userId = (int) $found['id'];
-        }
-    }
-
-    if ($userId === null) {
-        $fallbackStmt = $pdo->query("SELECT id FROM users WHERE role = 'customer' ORDER BY id ASC LIMIT 1");
-        $fallbackRow = $fallbackStmt ? $fallbackStmt->fetch() : false;
-        if (!$fallbackRow) {
-            $fallbackStmt = $pdo->query("SELECT id FROM users ORDER BY id ASC LIMIT 1");
-            $fallbackRow = $fallbackStmt ? $fallbackStmt->fetch() : false;
-        }
-        if ($fallbackRow && !empty($fallbackRow['id'])) {
-            $userId = (int) $fallbackRow['id'];
-        }
-    }
-}
-
-if ($userId === null || $userId <= 0) {
-    json_error('Vui lòng đăng nhập để tiếp tục.', 401);
+$customer = require_customer();
+$userId = $customer['id'];
+$customerStatus = $pdo->prepare('SELECT role, status FROM users WHERE id = :id LIMIT 1');
+$customerStatus->execute(['id' => $userId]);
+$customerRecord = $customerStatus->fetch();
+if (!$customerRecord || $customerRecord['role'] !== 'customer' || $customerRecord['status'] !== 'active') {
+    json_error('Tài khoản khách hàng hiện không hoạt động.', 403);
 }
 
 // 1. TẠO ĐƠN HÀNG (CHECKOUT)
@@ -415,7 +360,7 @@ if ($action === 'cancel' && $method === 'POST') {
 
     $pdo->beginTransaction();
     $stmt = $pdo->prepare(
-        'SELECT id, order_code, order_status FROM orders WHERE id = :id AND user_id = :user_id FOR UPDATE'
+        'SELECT id, order_code, order_status, payment_status FROM orders WHERE id = :id AND user_id = :user_id FOR UPDATE'
     );
     $stmt->execute(['id' => $orderId, 'user_id' => $userId]);
     $order = $stmt->fetch();
@@ -429,6 +374,10 @@ if ($action === 'cancel' && $method === 'POST') {
     if ($currentEffectiveStatus !== 'pending') {
         $pdo->rollBack();
         json_error('Đơn hàng đã được xác nhận hoặc đang vận chuyển nên không thể tự hủy.', 409);
+    }
+    if ($order['payment_status'] === 'paid') {
+        $pdo->rollBack();
+        json_error('Đơn hàng đã thanh toán; vui lòng liên hệ hỗ trợ để xử lý hủy và hoàn tiền.', 409);
     }
 
     $pdo->prepare('UPDATE orders SET order_status = "cancelled", updated_at = NOW() WHERE id = :id')
