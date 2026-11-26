@@ -71,7 +71,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email,
           role: 'customer',
           status: 'active',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
           createdAt: new Date().toISOString().split('T')[0],
         };
       }

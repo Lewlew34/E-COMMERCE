@@ -94,6 +94,8 @@ E-COMMERCE/
 ### 1. Phân Hệ Khách Hàng (Customer Storefront)
 - **Trang chủ & Flash Sale (`/`):** Đồng hồ đếm ngược Flash Sale theo thời gian thực, danh sách deal sốc và banner công nghệ.
 - **Danh Mục & Lọc Nâng Cao (`/catalog`):** Tìm kiếm thông minh (bỏ dấu tiếng Việt), lọc đa tiêu chí theo Hãng & Danh mục, sắp xếp giá bán.
+- **Giỏ hàng & Đặt mua:** Giỏ hàng được lưu theo tài khoản trong cơ sở dữ liệu; xóa sản phẩm và đặt hàng chỉ cập nhật đúng các mặt hàng đã chọn. Nút **"Mua ngay"** từ trang chi tiết chỉ đặt sản phẩm đang xem.
+- **Thông tin tài khoản (`/customer/profile`):** Xem thông tin người dùng; tên, số điện thoại và địa chỉ mặc định được dùng để điền nhanh thông tin nhận hàng.
 - **Chi Tiết Sản Phẩm & SEO Friendly URL (`/product/:slug`):**
   - Đường dẫn thân thiện chuẩn SEO (Ví dụ: `/product/asus-rog-strix-scar-16`).
   - Tự động sinh thẻ Meta Open Graph hỗ trợ xem trước sinh động khi chia sẻ liên kết lên **Facebook / Zalo**.

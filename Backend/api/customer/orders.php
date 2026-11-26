@@ -98,13 +98,16 @@ function resolve_effective_order_status(PDO $pdo, int $orderId, ?string $baseOrd
 }
 
 $userId = null;
+if (!empty($_SESSION['auth_user_id'])) {
+    $userId = (int) $_SESSION['auth_user_id'];
+}
 
 // 1. Thử lấy user từ Bearer token nếu có trong các bảng token/session phổ biến
 $authHeader = $_SERVER['HTTP_AUTHORIZATION']
     ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION']
     ?? (function_exists('getallheaders') ? (getallheaders()['Authorization'] ?? getallheaders()['authorization'] ?? '') : '');
 
-if (preg_match('/Bearer\s+(.+)/i', (string) $authHeader, $matches)) {
+if ($userId === null && preg_match('/Bearer\s+(.+)/i', (string) $authHeader, $matches)) {
     $token = trim($matches[1]);
     if ($token !== '' && !str_starts_with($token, 'mock_token_')) {
         foreach (
@@ -310,6 +313,43 @@ if ($action === 'create' && $method === 'POST') {
         'method' => $paymentMethod,
         'amount' => $subtotal + $shippingFee,
     ]);
+
+    $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1');
+    $cartStmt->execute(['user_id' => $userId]);
+    $cartId = $cartStmt->fetchColumn();
+    if ($cartId !== false) {
+        $cartItemsStmt = $pdo->prepare(
+            'SELECT id, quantity FROM cart_items
+             WHERE cart_id = :cart_id AND variant_id = :variant_id
+             ORDER BY id FOR UPDATE'
+        );
+        $deleteCartItem = $pdo->prepare('DELETE FROM cart_items WHERE id = :id');
+        $updateCartItem = $pdo->prepare('UPDATE cart_items SET quantity = :quantity WHERE id = :id');
+
+        foreach ($lines as $line) {
+            $cartItemsStmt->execute([
+                'cart_id' => (int) $cartId,
+                'variant_id' => $line['variant_id'],
+            ]);
+            $remainingToRemove = (int) $line['quantity'];
+            foreach ($cartItemsStmt->fetchAll() as $cartItem) {
+                if ($remainingToRemove <= 0) {
+                    break;
+                }
+                $cartQuantity = (int) $cartItem['quantity'];
+                if ($cartQuantity <= $remainingToRemove) {
+                    $deleteCartItem->execute(['id' => (int) $cartItem['id']]);
+                    $remainingToRemove -= $cartQuantity;
+                } else {
+                    $updateCartItem->execute([
+                        'quantity' => $cartQuantity - $remainingToRemove,
+                        'id' => (int) $cartItem['id'],
+                    ]);
+                    $remainingToRemove = 0;
+                }
+            }
+        }
+    }
 
     $pdo->commit();
 

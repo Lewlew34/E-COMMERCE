@@ -191,7 +191,17 @@ export const CustomerLayout: React.FC = () => {
                   className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer text-left"
                 >
                   <div className="w-9 h-9 rounded-full bg-slate-200 overflow-hidden ring-2 ring-blue-500/20">
-                    <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+                    <div className="w-full h-full flex items-center justify-center text-slate-500">
+                      <UserIcon className="w-5 h-5" />
+                    </div>
+                    {user.avatar && (
+                      <img
+                        src={user.avatar}
+                        alt={user.name}
+                        className="w-full h-full object-cover -mt-9"
+                        onError={event => event.currentTarget.remove()}
+                      />
+                    )}
                   </div>
                   <div className="hidden sm:block text-left">
                     <div className="text-xs font-semibold text-slate-800 line-clamp-1">{user.name}</div>
@@ -228,12 +238,21 @@ export const CustomerLayout: React.FC = () => {
                     )}
 
                     <Link
-                      to="/order-history"
+                      to="/customer/profile"
+                      onClick={() => setShowUserMenu(false)}
+                      className="flex items-center gap-2 px-4 py-2.5 hover:bg-slate-50 text-slate-700"
+                    >
+                      <UserIcon className="w-4 h-4 text-slate-500" />
+                      <span>Thông tin người dùng</span>
+                    </Link>
+
+                    <Link
+                      to="/cart"
                       onClick={() => setShowUserMenu(false)}
                       className="flex items-center gap-2 px-4 py-2.5 hover:bg-blue-50 text-blue-600 font-semibold"
                     >
-                      <History className="w-4 h-4 text-blue-600" />
-                      <span>Lịch sử đơn hàng của tôi</span>
+                      <ShoppingCart className="w-4 h-4 text-blue-600" />
+                      <span>Giỏ hàng của tôi</span>
                     </Link>
 
                     <Link

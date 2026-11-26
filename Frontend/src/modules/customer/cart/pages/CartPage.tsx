@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { 
   Trash2, 
@@ -11,100 +11,21 @@ import {
   Truck
 } from 'lucide-react';
 import { formatCurrencyVN } from '../../../../utils/format';
-
-interface CartItem {
-  variantId: string | number;
-  quantity: number;
-  product: {
-    id: string | number;
-    name: string;
-    slug?: string;
-  };
-  variant: {
-    price: number;
-    image: string;
-    stockQuantity: number;
-    attributes: Record<string, string>;
-  };
-}
+import { useCart } from '../../../../contexts/CartContext';
 
 export const CartPage: React.FC = () => {
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedVariantIds, setSelectedVariantIds] = useState<(string | number)[]>([]);
   const navigate = useNavigate();
-
-  // Hàm lấy key giỏ hàng độc lập theo tài khoản hiện tại (giống Shopee)
-  const getCartStorageKey = () => {
-    const currentUserStr =
-      localStorage.getItem('currentUser') ||
-      localStorage.getItem('user') ||
-      localStorage.getItem('auth_user') ||
-      localStorage.getItem('loggedUser') ||
-      'default_user';
-    return `cart_${currentUserStr}`;
-  };
-
-  // Đọc giỏ hàng riêng của user khi vào trang
-  useEffect(() => {
-    try {
-      const savedCart = JSON.parse(localStorage.getItem(getCartStorageKey()) || '[]');
-      setCart(savedCart);
-      // Mặc định chọn tất cả sản phẩm khi load giỏ hàng
-      setSelectedVariantIds(savedCart.map((item: CartItem) => item.variantId));
-    } catch (error) {
-      console.error('Lỗi đọc giỏ hàng:', error);
-      setCart([]);
-    }
-  }, []);
-
-  // Lưu giỏ hàng riêng của user mỗi khi thay đổi
-  const saveCartToStorage = (updatedCart: CartItem[]) => {
-    setCart(updatedCart);
-    try {
-      localStorage.setItem(getCartStorageKey(), JSON.stringify(updatedCart));
-    } catch (error) {
-      console.error('Lỗi lưu giỏ hàng:', error);
-    }
-  };
-
-  const updateQuantity = (variantId: string | number, newQty: number) => {
-    if (newQty <= 0) {
-      removeFromCart(variantId);
-      return;
-    }
-    const updated = cart.map(item => 
-      item.variantId === variantId ? { ...item, quantity: newQty } : item
-    );
-    saveCartToStorage(updated);
-  };
-
-  const removeFromCart = (variantId: string | number) => {
-    const updated = cart.filter(item => item.variantId !== variantId);
-    saveCartToStorage(updated);
-    setSelectedVariantIds(prev => prev.filter(id => id !== variantId));
-  };
-
-  const clearCart = () => {
-    saveCartToStorage([]);
-    setSelectedVariantIds([]);
-  };
-
-  const toggleSelectItem = (variantId: string | number) => {
-    setSelectedVariantIds(prev => 
-      prev.includes(variantId) ? prev.filter(id => id !== variantId) : [...prev, variantId]
-    );
-  };
-
-  const selectAllItems = (checked: boolean) => {
-    if (checked) {
-      setSelectedVariantIds(cart.map(item => item.variantId));
-    } else {
-      setSelectedVariantIds([]);
-    }
-  };
-
-  const selectedItems = cart.filter(item => selectedVariantIds.includes(item.variantId));
-  const selectedSubtotal = selectedItems.reduce((sum, item) => sum + (item.variant.price * item.quantity), 0);
+  const {
+    cart,
+    clearCart,
+    removeFromCart,
+    selectedItems,
+    selectedSubtotal,
+    selectedVariantIds,
+    selectAllItems,
+    toggleSelectItem,
+    updateQuantity
+  } = useCart();
 
   const isAllSelected = cart.length > 0 && selectedVariantIds.length === cart.length;
   const shippingFee = selectedSubtotal >= 500000 || selectedSubtotal === 0 ? 0 : 30000;
@@ -142,7 +63,7 @@ export const CartPage: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={clearCart}
+          onClick={() => void clearCart()}
           className="text-xs text-slate-400 hover:text-red-600 transition-colors cursor-pointer flex items-center gap-1"
         >
           <Trash2 className="w-3.5 h-3.5" />
@@ -224,7 +145,7 @@ export const CartPage: React.FC = () => {
                   <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto pt-2 sm:pt-0 border-t sm:border-0 border-slate-100">
                     <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden bg-slate-50">
                       <button
-                        onClick={() => updateQuantity(item.variantId, item.quantity - 1)}
+                        onClick={() => void updateQuantity(item.variantId, item.quantity - 1)}
                         className="p-1.5 hover:bg-slate-200 text-slate-600 cursor-pointer"
                       >
                         <Minus className="w-3.5 h-3.5" />
@@ -233,7 +154,7 @@ export const CartPage: React.FC = () => {
                         {item.quantity}
                       </span>
                       <button
-                        onClick={() => updateQuantity(item.variantId, item.quantity + 1)}
+                        onClick={() => void updateQuantity(item.variantId, item.quantity + 1)}
                         disabled={item.quantity >= item.variant.stockQuantity}
                         className="p-1.5 hover:bg-slate-200 text-slate-600 disabled:opacity-30 cursor-pointer"
                       >
@@ -251,7 +172,7 @@ export const CartPage: React.FC = () => {
                     </div>
 
                     <button
-                      onClick={() => removeFromCart(item.variantId)}
+                      onClick={() => void removeFromCart(item.variantId)}
                       className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
                       title="Xóa khỏi giỏ"
                     >
@@ -313,7 +234,7 @@ export const CartPage: React.FC = () => {
                   alert('Vui lòng chọn ít nhất một sản phẩm để thanh toán!');
                   return;
                 }
-                localStorage.setItem('checkoutItems', JSON.stringify(selectedItems));
+                sessionStorage.setItem('checkoutItems', JSON.stringify(selectedItems));
                 navigate('/checkout');
               }}
               disabled={selectedItems.length === 0}

@@ -5,6 +5,7 @@ export * from './common/catalogApi';
 export * from './common/aiChatApi';
 export * from './chat/chatApi';
 export * from './customer/customerOrderApi';
+export * from './customer/customerCartApi';
 export * from './customer/customerAddressApi';
 export * from './seller/sellerProductApi';
 export * from './seller/sellerOrderApi';

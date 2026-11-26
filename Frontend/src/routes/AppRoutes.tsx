@@ -23,6 +23,7 @@ import { CheckoutPage } from '../modules/customer/checkout/pages/CheckoutPage';
 import { OrderSuccessPage } from '../modules/customer/checkout/pages/OrderSuccessPage';
 import { OrderFailedPage } from '../modules/customer/checkout/pages/OrderFailedPage';
 import { CustomerOrdersPage } from '../modules/customer/orders/pages/CustomerOrdersPage';
+import { CustomerProfilePage } from '../modules/customer/profile/pages/CustomerProfilePage';
 import { WishlistPage } from '../modules/customer/wishlist/pages/WishlistPage';
 import { ChatInboxPage } from '../modules/chat/pages/ChatInboxPage';
 import { ShowroomPage } from '../modules/customer/showroom/pages/ShowroomPage';
@@ -74,6 +75,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="order-history" element={<CustomerOrdersPage />} />
 
           <Route path="customer/orders" element={<CustomerOrdersPage />} />
+          <Route path="customer/profile" element={<CustomerProfilePage />} />
           <Route path="wishlist" element={<WishlistPage />} />
           <Route element={<ProtectedRoute allowedRoles={['customer']} />}>
             <Route path="customer/messages" element={<ChatInboxPage />} />

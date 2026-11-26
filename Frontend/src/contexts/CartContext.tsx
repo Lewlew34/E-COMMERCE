@@ -1,14 +1,16 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { CartItem } from '../types/ecommerce.types';
-import { cartService } from '../services/storageService';
+import { customerCartApi } from '../api';
+import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
 interface CartContextType {
   cart: CartItem[];
-  addToCart: (variantId: number, quantity?: number) => void;
-  updateQuantity: (variantId: number, quantity: number) => void;
-  removeFromCart: (variantId: number) => void;
-  clearCart: () => void;
+  addToCart: (variantId: number, quantity?: number) => Promise<void>;
+  updateQuantity: (variantId: number, quantity: number) => Promise<void>;
+  removeFromCart: (variantId: number) => Promise<void>;
+  clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
   totalCount: number;
   subtotal: number;
   selectedVariantIds: number[];
@@ -20,102 +22,159 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function getCartStorageKey(userId: string | number): string {
+  return `cart_${userId}`;
+}
+
+function readCachedCart(userId: string | number): CartItem[] {
+  try {
+    const stored = localStorage.getItem(getCartStorageKey(userId));
+    const parsed: unknown = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed as CartItem[] : [];
+  } catch (error) {
+    console.error('Lỗi đọc bản lưu giỏ hàng:', error);
+    return [];
+  }
+}
+
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVariantIds, setSelectedVariantIds] = useState<number[]>([]);
+  const { user } = useAuth();
   const { showToast } = useToast();
+  const userId = user?.id;
+  const isCustomer = String(user?.role || '').toLowerCase() === 'customer';
 
-  // Lấy key giỏ hàng độc lập theo tài khoản hiện tại (giống Shopee)
-  const getCartStorageKey = () => {
-    const currentUserStr =
-      localStorage.getItem('currentUser') ||
-      localStorage.getItem('user') ||
-      localStorage.getItem('auth_user') ||
-      localStorage.getItem('loggedUser') ||
-      'default_user';
-    return `cart_${currentUserStr}`;
+  const applyCart = (items: CartItem[], currentUserId = userId) => {
+    setCart(items);
+    setSelectedVariantIds((current) =>
+      current.filter((id) => items.some((item) => item.variantId === id))
+    );
+    if (currentUserId !== undefined) {
+      try {
+        localStorage.setItem(getCartStorageKey(currentUserId), JSON.stringify(items));
+      } catch (error) {
+        console.error('Lỗi lưu bản dự phòng giỏ hàng:', error);
+      }
+    }
   };
 
-  // Đồng bộ qua localStorage riêng của user
-  useEffect(() => {
-    try {
-      const storageKey = getCartStorageKey();
-      const savedCart = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      setCart(savedCart);
-      setSelectedVariantIds(savedCart.map((i: CartItem) => i.variantId));
-    } catch {
+  const refreshCart = async () => {
+    if (userId === undefined || !isCustomer) {
       setCart([]);
       setSelectedVariantIds([]);
+      return;
     }
-  }, []);
 
-  const saveAndSyncCart = (updatedCart: CartItem[]) => {
-    setCart(updatedCart);
     try {
-      const storageKey = getCartStorageKey();
-      localStorage.setItem(storageKey, JSON.stringify(updatedCart));
+      const items = await customerCartApi.getItems();
+      applyCart(items, userId);
+      setSelectedVariantIds(items.map((item) => item.variantId));
     } catch (error) {
-      console.error('Lỗi lưu giỏ hàng:', error);
+      const cachedCart = readCachedCart(userId);
+      setCart(cachedCart);
+      setSelectedVariantIds(cachedCart.map((item) => item.variantId));
+      showToast(error instanceof Error ? error.message : 'Không thể tải giỏ hàng từ máy chủ.', 'error');
     }
   };
 
-  const addToCart = (variantId: number, quantity: number = 1) => {
-    // Tận dụng cartService để thêm sản phẩm chuẩn xác theo logic gốc của dự án
-    const updated = cartService.addItem(variantId, quantity);
-    saveAndSyncCart(updated);
-    
-    if (!selectedVariantIds.includes(variantId)) {
-      setSelectedVariantIds(prev => [...prev, variantId]);
+  useEffect(() => {
+    let active = true;
+    if (userId === undefined || !isCustomer) {
+      setCart([]);
+      setSelectedVariantIds([]);
+      return () => {
+        active = false;
+      };
     }
 
-    const addedItem = updated.find(i => i.variantId === variantId);
-    if (addedItem) {
-      showToast(`Đã thêm "${addedItem.product.name}" vào giỏ hàng!`, 'success');
+    customerCartApi.getItems().then((items) => {
+      if (!active) return;
+      applyCart(items, userId);
+      setSelectedVariantIds(items.map((item) => item.variantId));
+    }).catch((error: unknown) => {
+      if (!active) return;
+      const cachedCart = readCachedCart(userId);
+      setCart(cachedCart);
+      setSelectedVariantIds(cachedCart.map((item) => item.variantId));
+      showToast(error instanceof Error ? error.message : 'Không thể tải giỏ hàng từ máy chủ.', 'error');
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [userId, isCustomer, showToast]);
+
+  const addToCart = async (variantId: number, quantity = 1) => {
+    if (!isCustomer) {
+      showToast('Vui lòng đăng nhập bằng tài khoản khách hàng để sử dụng giỏ hàng.', 'error');
+      return;
+    }
+    try {
+      const updatedCart = await customerCartApi.addItem(variantId, quantity);
+      applyCart(updatedCart);
+      setSelectedVariantIds((current) =>
+        current.includes(variantId) ? current : [...current, variantId]
+      );
+      const item = updatedCart.find((cartItem) => cartItem.variantId === variantId);
+      if (item) showToast(`Đã thêm "${item.product.name}" vào giỏ hàng!`, 'success');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể thêm sản phẩm vào giỏ hàng.', 'error');
     }
   };
 
-  const updateQuantity = (variantId: number, quantity: number) => {
-    const updated = cartService.updateQuantity(variantId, quantity);
-    saveAndSyncCart(updated);
-  };
-
-  const removeFromCart = (variantId: number) => {
-    const itemToRemove = cart.find(i => i.variantId === variantId);
-    const updated = cartService.removeItem(variantId);
-    saveAndSyncCart(updated);
-    setSelectedVariantIds(prev => prev.filter(id => id !== variantId));
-    if (itemToRemove) {
-      showToast(`Đã xóa sản phẩm khỏi giỏ hàng`, 'info');
+  const updateQuantity = async (variantId: number, quantity: number) => {
+    if (quantity <= 0) {
+      await removeFromCart(variantId);
+      return;
+    }
+    try {
+      applyCart(await customerCartApi.updateQuantity(variantId, quantity));
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể cập nhật số lượng sản phẩm.', 'error');
     }
   };
 
-  const clearCart = () => {
-    cartService.clearCart();
-    saveAndSyncCart([]);
-    setSelectedVariantIds([]);
+  const removeFromCart = async (variantId: number) => {
+    try {
+      applyCart(await customerCartApi.removeItem(variantId));
+      showToast('Đã xóa sản phẩm khỏi giỏ hàng.', 'info');
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể xóa sản phẩm khỏi giỏ hàng.', 'error');
+    }
+  };
+
+  const clearCart = async () => {
+    try {
+      applyCart(await customerCartApi.clear());
+      setSelectedVariantIds([]);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Không thể xóa giỏ hàng.', 'error');
+    }
   };
 
   const toggleSelectItem = (variantId: number) => {
-    setSelectedVariantIds(prev => 
-      prev.includes(variantId) 
-        ? prev.filter(id => id !== variantId)
-        : [...prev, variantId]
+    setSelectedVariantIds((current) =>
+      current.includes(variantId)
+        ? current.filter((id) => id !== variantId)
+        : [...current, variantId]
     );
   };
 
   const selectAllItems = (select: boolean) => {
-    if (select) {
-      setSelectedVariantIds(cart.map(i => i.variantId));
-    } else {
-      setSelectedVariantIds([]);
-    }
+    setSelectedVariantIds(select ? cart.map((item) => item.variantId) : []);
   };
 
+  const selectedItems = useMemo(
+    () => cart.filter((item) => selectedVariantIds.includes(item.variantId)),
+    [cart, selectedVariantIds]
+  );
   const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = cart.reduce((sum, item) => sum + (item.variant.price * item.quantity), 0);
-
-  const selectedItems = cart.filter(item => selectedVariantIds.includes(item.variantId));
-  const selectedSubtotal = selectedItems.reduce((sum, item) => sum + (item.variant.price * item.quantity), 0);
+  const subtotal = cart.reduce((sum, item) => sum + item.variant.price * item.quantity, 0);
+  const selectedSubtotal = selectedItems.reduce(
+    (sum, item) => sum + item.variant.price * item.quantity,
+    0
+  );
 
   return (
     <CartContext.Provider
@@ -125,6 +184,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         updateQuantity,
         removeFromCart,
         clearCart,
+        refreshCart,
         totalCount,
         subtotal,
         selectedVariantIds,

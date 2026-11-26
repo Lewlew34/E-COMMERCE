@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
+import { API_BASE_URL, customerAddressApi } from '../../../../api';
+import { useAuth } from '../../../../contexts/AuthContext';
+import { useCart } from '../../../../contexts/CartContext';
+import { useToast } from '../../../../contexts/ToastContext';
 
 interface CheckoutItem {
     variantId?: number;
@@ -31,7 +35,7 @@ declare global {
     }
 }
 
-const API_BASE = 'http://localhost/TechMart/Backend/api';
+const API_BASE = API_BASE_URL;
 const PAYPAL_CLIENT_ID = (import.meta as any)?.env?.VITE_PAYPAL_CLIENT_ID || '';
 
 const LOCATION_DATA: Record<string, string[]> = {
@@ -69,48 +73,28 @@ const LOCATION_DATA: Record<string, string[]> = {
 const CITY_LIST = Object.keys(LOCATION_DATA);
 
 function getAuthToken(): string {
-    const keys = ['token', 'authToken', 'accessToken', 'jwt', 'auth_token'];
-    for (const key of keys) {
-        const val = localStorage.getItem(key);
-        if (val && val.trim() !== '') {
-            return val.replace(/^Bearer\s+/i, '').trim();
-        }
-    }
-    const userKeys = ['currentUser', 'user', 'auth_user', 'loggedUser'];
-    for (const uKey of userKeys) {
-        const raw = localStorage.getItem(uKey);
-        if (!raw) continue;
-        try {
-            const parsed = JSON.parse(raw);
-            const embedded = parsed?.token || parsed?.accessToken || parsed?.authToken;
-            if (typeof embedded === 'string' && embedded.trim() !== '') {
-                return embedded.replace(/^Bearer\s+/i, '').trim();
-            }
-        } catch {
-            // Bỏ qua nếu không phải JSON
-        }
+    for (const key of ['token', 'authToken', 'accessToken', 'jwt', 'auth_token']) {
+        const token = localStorage.getItem(key);
+        if (token?.trim()) return token.replace(/^Bearer\s+/i, '').trim();
     }
     return '';
 }
 
-function resolveVariantId(item: any, fallbackCart: any[], index: number): number | undefined {
-    const candidates = [
-        item?.variantId,
-        item?.variant_id,
-        item?.variant?.id,
-        item?.productVariantId,
-        fallbackCart[index]?.variantId,
-        fallbackCart[index]?.variant_id,
-        fallbackCart[index]?.variant?.id,
-        item?.id
-    ];
-    for (const c of candidates) {
-        const num = Number(c);
-        if (Number.isInteger(num) && num > 0) {
-            return num;
-        }
+function readCheckoutItems(): CheckoutItem[] {
+    try {
+        const storedItems = sessionStorage.getItem('checkoutItems') || localStorage.getItem('checkoutItems');
+        const items: unknown = storedItems ? JSON.parse(storedItems) : [];
+        if (!Array.isArray(items)) return [];
+        return items.map((item: any) => ({
+            variantId: Number(item.variantId ?? item.variant_id ?? item.variant?.id) || undefined,
+            name: item.name || item.product?.name || 'Sản phẩm công nghệ',
+            price: Number(item.price ?? item.variant?.price ?? 0),
+            quantity: Number(item.quantity || 1)
+        }));
+    } catch (error) {
+        console.error('Lỗi đọc dữ liệu thanh toán:', error);
+        return [];
     }
-    return undefined;
 }
 
 const cardStyle: React.CSSProperties = {
@@ -186,8 +170,11 @@ const getPaymentCardStyle = (active: boolean): React.CSSProperties => ({
 export function CheckoutPage() {
     const navigate = useNavigate();
     const paypalContainerRef = useRef<HTMLDivElement | null>(null);
+    const { user } = useAuth();
+    const { refreshCart } = useCart();
+    const { showToast } = useToast();
 
-    const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>([]);
+    const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>(readCheckoutItems);
     const [paymentMethod, setPaymentMethod] = useState<'cod' | 'vnpay' | 'paypal'>('cod');
     const [loading, setLoading] = useState(false);
     const [verifyingPaypal, setVerifyingPaypal] = useState(false);
@@ -197,8 +184,8 @@ export function CheckoutPage() {
     const [selectedMapLocation, setSelectedMapLocation] = useState<LocationResult | null>(null);
 
     const [shippingInfo, setShippingInfo] = useState<ShippingInfo>({
-        fullName: '',
-        phone: '',
+        fullName: user?.name || '',
+        phone: (user?.phone || '').replace(/\D/g, '').slice(0, 11),
         city: 'TP. Hồ Chí Minh',
         district: 'Quận 1',
         ward: '',
@@ -206,70 +193,41 @@ export function CheckoutPage() {
     });
 
     useEffect(() => {
-        try {
-            const currentUserStr = localStorage.getItem('currentUser') ||
-                                   localStorage.getItem('user') ||
-                                   localStorage.getItem('auth_user') ||
-                                   localStorage.getItem('loggedUser');
+        let active = true;
+        const userName = user?.name || user?.full_name || '';
+        const userPhone = (user?.phone || '').replace(/\D/g, '').slice(0, 11);
 
-            if (currentUserStr) {
-                let userData: any = currentUserStr;
-                try {
-                    userData = JSON.parse(currentUserStr);
-                } catch {
-                    userData = { fullName: currentUserStr, name: currentUserStr };
-                }
-
-                const rawCity = userData.city || userData.province || 'TP. Hồ Chí Minh';
-                const resolvedCity = LOCATION_DATA[rawCity] ? rawCity : 'TP. Hồ Chí Minh';
-                const availableDistricts = LOCATION_DATA[resolvedCity];
-                const rawDistrict = userData.district || 'Quận 1';
-                const resolvedDistrict = availableDistricts.includes(rawDistrict)
-                    ? rawDistrict
-                    : availableDistricts[0];
-
-                const rawPhone = String(userData.phone || userData.phoneNumber || userData.tel || '');
-                const digitsOnlyPhone = rawPhone.replace(/\D/g, '').slice(0, 11);
-
+        if (String(user?.role || '').toLowerCase() === 'customer') {
+            customerAddressApi.getAddresses().then(addresses => {
+                if (!active) return;
+                const address = addresses.find(item => item.isDefault) || addresses[0];
+                if (!address) return;
+                const city = LOCATION_DATA[address.city] ? address.city : 'TP. Hồ Chí Minh';
+                const districts = LOCATION_DATA[city];
                 setShippingInfo(prev => ({
                     ...prev,
-                    fullName: userData.fullName || userData.name || userData.username || '',
-                    phone: digitsOnlyPhone,
-                    city: resolvedCity,
-                    district: resolvedDistrict,
-                    ward: userData.ward || '',
-                    address: userData.address || userData.shippingAddress || userData.street || ''
+                    fullName: prev.fullName === userName || !prev.fullName
+                        ? address.recipientName || userName
+                        : prev.fullName,
+                    phone: prev.phone === userPhone || !prev.phone
+                        ? address.phone.replace(/\D/g, '').slice(0, 11) || userPhone
+                        : prev.phone,
+                    city,
+                    district: districts.includes(address.district || '') ? address.district || districts[0] : districts[0],
+                    ward: address.ward || '',
+                    address: address.addressLine || ''
                 }));
-            }
-
-            const storedItemsStr = localStorage.getItem('checkoutItems');
-            const rawItems = storedItemsStr ? JSON.parse(storedItemsStr) : [];
-            const fallbackCartStr = localStorage.getItem('cart') ||
-                                    localStorage.getItem('cartItems') ||
-                                    localStorage.getItem('cart_items') || '[]';
-            let fallbackCart: any[] = [];
-            try {
-                const parsedCart = JSON.parse(fallbackCartStr);
-                fallbackCart = Array.isArray(parsedCart) ? parsedCart : (parsedCart?.items || []);
-            } catch {
-                fallbackCart = [];
-            }
-
-            const formattedItems: CheckoutItem[] = Array.isArray(rawItems)
-                ? rawItems.map((item: any, idx: number) => ({
-                    variantId: resolveVariantId(item, fallbackCart, idx),
-                    name: item.name || item.product?.name || 'Sản phẩm công nghệ',
-                    price: Number(item.price !== undefined ? item.price : (item.variant?.price || 0)),
-                    quantity: Number(item.quantity || 1)
-                }))
-                : [];
-
-            setCheckoutItems(formattedItems);
-        } catch (error) {
-            console.error('Lỗi đọc dữ liệu:', error);
-            setCheckoutItems([]);
+            }).catch((error: unknown) => {
+                if (active) {
+                    showToast(error instanceof Error ? error.message : 'Không thể tải thông tin địa chỉ nhận hàng.', 'error');
+                }
+            });
         }
-    }, []);
+
+        return () => {
+            active = false;
+        };
+    }, [user?.id, user?.name, user?.full_name, user?.phone, user?.role, showToast]);
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -340,10 +298,8 @@ export function CheckoutPage() {
     );
 
     const clearCartStorage = () => {
+        sessionStorage.removeItem('checkoutItems');
         localStorage.removeItem('checkoutItems');
-        localStorage.removeItem('cart');
-        localStorage.removeItem('cartItems');
-        localStorage.removeItem('cart_items');
     };
 
     const saveLocalOrderSnapshot = (orderRecord: any) => {
@@ -356,16 +312,6 @@ export function CheckoutPage() {
             const existingOrders = JSON.parse(localStorage.getItem(userKey) || '[]');
             existingOrders.unshift(orderRecord);
             localStorage.setItem(userKey, JSON.stringify(existingOrders));
-
-            const globalOrdersKey = 'customer_orders';
-            const globalOrders = JSON.parse(localStorage.getItem(globalOrdersKey) || '[]');
-            globalOrders.unshift(orderRecord);
-            localStorage.setItem(globalOrdersKey, JSON.stringify(globalOrders));
-
-            const sellerOrdersKey = 'seller_orders';
-            const sellerOrders = JSON.parse(localStorage.getItem(sellerOrdersKey) || '[]');
-            sellerOrders.unshift(orderRecord);
-            localStorage.setItem(sellerOrdersKey, JSON.stringify(sellerOrders));
 
             if (orderRecord?.orderCode) {
                 localStorage.setItem(
@@ -519,6 +465,7 @@ export function CheckoutPage() {
 
             const createRes = await fetch(`${API_BASE}/customer/orders.php?action=create`, {
                 method: 'POST',
+                credentials: 'include',
                 headers,
                 body: JSON.stringify({
                     items: checkoutItems.map(item => ({
@@ -578,6 +525,9 @@ export function CheckoutPage() {
             };
 
             saveLocalOrderSnapshot(orderData);
+            clearCartStorage();
+            setCheckoutItems([]);
+            await refreshCart();
 
             if (paymentMethod === 'vnpay') {
                 localStorage.setItem('pendingVNPayOrder', JSON.stringify(orderData));
@@ -596,7 +546,6 @@ export function CheckoutPage() {
 
                 const vnpResult = await vnpRes.json();
                 if (vnpResult.code === '00' && typeof vnpResult.data === 'string') {
-                    clearCartStorage();
                     window.location.href = vnpResult.data;
                     return;
                 }
@@ -616,7 +565,6 @@ export function CheckoutPage() {
                 return;
             }
 
-            clearCartStorage();
             navigate(`/order-success?vnp_ResponseCode=00&vnp_TxnRef=${encodeURIComponent(orderCode)}`);
         } catch (error: any) {
             console.error('Lỗi đặt hàng:', error);

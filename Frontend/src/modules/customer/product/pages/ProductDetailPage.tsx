@@ -130,7 +130,12 @@ export const ProductDetailPage: React.FC = () => {
       openAuthModal('Thanh toán', 'Vui lòng đăng nhập hoặc tạo tài khoản để mua ngay sản phẩm này.');
       return;
     }
-    addToCart(selectedVariant.id, quantity);
+    sessionStorage.setItem('checkoutItems', JSON.stringify([{
+      variantId: selectedVariant.id,
+      name: product.name,
+      price: selectedVariant.price,
+      quantity
+    }]));
     navigate('/checkout');
   };
 
