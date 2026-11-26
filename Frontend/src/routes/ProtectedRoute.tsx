@@ -8,8 +8,16 @@ interface ProtectedRouteProps {
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, loading } = useAuth();
   const location = useLocation();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-slate-500" role="status">
+        Đang kiểm tra phiên đăng nhập...
+      </div>
+    );
+  }
 
   // 1. If not authenticated, redirect to Login page
   if (!isAuthenticated || !user) {

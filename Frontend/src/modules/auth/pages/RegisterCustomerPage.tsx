@@ -4,6 +4,7 @@ import { User as UserIcon, Mail, Lock, Phone, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { sellerApiService } from '../../../services/storageService';
+import { authApi } from '../../../api';
 
 export const RegisterCustomerPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -14,7 +15,7 @@ export const RegisterCustomerPage: React.FC = () => {
     password: '',
     confirmPassword: '',
   });
-  const { loginWithUser } = useAuth();
+  const { setAuthenticatedUser } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
 
@@ -31,8 +32,14 @@ export const RegisterCustomerPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const user = await sellerApiService.registerCustomer(formData);
-      loginWithUser(user);
+      await sellerApiService.registerCustomer(formData);
+      const sessionUser = await authApi.getMe().catch(() => null);
+      if (!sessionUser) {
+        showToast('Tài khoản đã được tạo. Phiên chưa đồng bộ được; vui lòng đăng nhập.', 'info');
+        navigate('/login', { replace: true });
+        return;
+      }
+      setAuthenticatedUser(sessionUser);
       showToast('Tạo tài khoản thành công.', 'success');
       navigate('/');
     } catch (error) {

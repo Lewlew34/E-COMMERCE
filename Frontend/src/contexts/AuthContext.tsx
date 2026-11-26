@@ -1,16 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User, UserRole } from '../types/auth.types';
-import { DEMO_USERS } from '../services/mockData/demoUsers';
 import { authApi } from '../api';
 
 interface AuthContextType {
   user: User | null;
   role: UserRole | null;
   isAuthenticated: boolean;
-  login: (email: string, password?: string) => { success: boolean; message?: string; user?: User };
-  loginWithUser: (user: User) => void;
-  logout: () => void;
-  // Helpers
+  loading: boolean;
+  setAuthenticatedUser: (user: User) => void;
+  logout: () => Promise<void>;
   isAdmin: boolean;
   isSeller: boolean;
   isCustomer: boolean;
@@ -19,82 +17,62 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(() => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const sessionRevision = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+    const requestRevision = sessionRevision.current;
+
+    // Remove legacy client-side identities. The PHP session is the source of truth.
     try {
-      // Dọn sạch dữ liệu cũ lưu trong localStorage để không bao giờ ghi nhớ vĩnh viễn
+      sessionStorage.removeItem('tech_store_session_user');
       localStorage.removeItem('tech_store_user');
       localStorage.removeItem('techmart_auth_user');
       localStorage.removeItem('currentUser');
       localStorage.removeItem('user');
       localStorage.removeItem('auth_user');
-
-      // Chỉ duy trì trong phiên tab hiện tại (tắt tab hoặc chạy lại localhost sẽ tự mất)
-      const saved = sessionStorage.getItem('tech_store_session_user');
-      if (saved) {
-        return JSON.parse(saved);
-      }
     } catch {
-      return null;
-    }
-    return null;
-  });
-
-  useEffect(() => {
-    if (user) {
-      sessionStorage.setItem('tech_store_session_user', JSON.stringify(user));
-    } else {
-      sessionStorage.removeItem('tech_store_session_user');
-    }
-    // Tuyệt đối không lưu vào localStorage
-    localStorage.removeItem('tech_store_user');
-  }, [user]);
-
-  const login = (email: string, _password?: string) => {
-    const trimmed = email.trim().toLowerCase();
-    let matchedUser: User | undefined;
-
-    if (trimmed.includes('admin') || trimmed === 'admin@techmart.vn') {
-      matchedUser = DEMO_USERS.admin;
-    } else if (trimmed.includes('seller') || trimmed.includes('gearzone') || trimmed === 'seller@gearzone.vn') {
-      matchedUser = DEMO_USERS.seller;
-    } else if (trimmed.includes('khachhang') || trimmed === 'khachhang@techstore.vn') {
-      matchedUser = DEMO_USERS.customer;
-    } else {
-      // Find from any registered users in demo list
-      matchedUser = Object.values(DEMO_USERS).find(u => u.email.toLowerCase() === trimmed);
-      if (!matchedUser) {
-        // Fallback create customer user for new email
-        matchedUser = {
-          id: Date.now(),
-          name: email.split('@')[0],
-          full_name: email.split('@')[0],
-          email,
-          role: 'customer',
-          status: 'active',
-          avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-          createdAt: new Date().toISOString().split('T')[0],
-        };
-      }
+      // Storage may be unavailable; session validation still runs against the server.
     }
 
-    if (matchedUser.status === 'banned') {
-      return { success: false, message: 'Tài khoản này đã bị khóa do vi phạm chính sách của sàn!' };
-    }
+    authApi.getMe()
+      .then(serverUser => {
+        if (active && requestRevision === sessionRevision.current) setUser(serverUser);
+      })
+      .catch(() => {
+        if (active && requestRevision === sessionRevision.current) setUser(null);
+      })
+      .finally(() => {
+        if (active && requestRevision === sessionRevision.current) setLoading(false);
+      });
 
-    setUser(matchedUser);
-    return { success: true, user: matchedUser };
+    const handleUnauthorized = () => {
+      sessionRevision.current += 1;
+      setUser(null);
+      setLoading(false);
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+
+    return () => {
+      active = false;
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
+  const setAuthenticatedUser = (authenticatedUser: User) => {
+    sessionRevision.current += 1;
+    setUser(authenticatedUser);
+    setLoading(false);
   };
 
-  const loginWithUser = (targetUser: User) => {
-    setUser(targetUser);
-  };
-
-  const logout = () => {
-    authApi.logout().catch(() => {});
+  const logout = async () => {
+    sessionRevision.current += 1;
     setUser(null);
-    localStorage.removeItem('tech_store_user');
-    localStorage.removeItem('techmart_auth_user');
-    sessionStorage.removeItem('tech_store_session_user');
+    setLoading(false);
+    // Keep the UI signed out, but let the caller report if the server session remains.
+    await authApi.logout();
   };
 
   const currentRole = user?.role ? String(user.role).toLowerCase() : null;
@@ -108,8 +86,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         role: user ? user.role : null,
         isAuthenticated: !!user,
-        login,
-        loginWithUser,
+        loading,
+        setAuthenticatedUser,
         logout,
         isAdmin,
         isSeller,

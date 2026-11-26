@@ -2,7 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useRef, type Rea
 import type { CartItem } from '../types/ecommerce.types';
 import { cartService, productService } from '../services/storageService';
 import { customerCartApi } from '../api/customer/customerCartApi';
-import { authApi } from '../api/auth/authApi';
 import { useAuth } from './AuthContext';
 import { useToast } from './ToastContext';
 
@@ -59,8 +58,9 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedVariantIds, setSelectedVariantIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { showToast } = useToast();
+  const isCustomer = String(user?.role || '').toLowerCase() === 'customer';
   const serverCartRef = useRef(false);
   const cartRef = useRef<CartItem[]>([]);
   const hasAppliedInitialCart = useRef(false);
@@ -79,6 +79,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
+    if (authLoading) return;
+
     let active = true;
     hasAppliedInitialCart.current = false;
     setLoading(true);
@@ -92,8 +94,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const connect = async () => {
       try {
-        const serverUser = await authApi.getMe();
-        if (!active || !serverUser || serverUser.role !== 'customer') return;
+        if (!active || !isCustomer) return;
         const latestGuestItems = readGuestCart();
         let serverItems: CartItem[];
         if (latestGuestItems.length) {
@@ -106,15 +107,18 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!active) return;
         serverCartRef.current = true;
         applyCart(serverItems);
-      } catch {
-        // Local/demo sign-ins have no PHP session, so keep the guest cart in local storage.
+      } catch (error) {
+        if (active && isCustomer) {
+          const message = error instanceof Error ? error.message : 'Không thể đồng bộ giỏ hàng với máy chủ.';
+          showToast(message, 'error');
+        }
       } finally {
         if (active) setLoading(false);
       }
     };
     void connect();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [authLoading, isCustomer, showToast, user?.id]);
 
   useEffect(() => {
     sessionStorage.setItem(SELECTED_KEY, JSON.stringify(selectedVariantIds));

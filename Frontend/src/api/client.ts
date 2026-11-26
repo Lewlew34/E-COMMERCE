@@ -12,6 +12,12 @@ export interface ApiResponse<T> {
   user?: T;
 }
 
+export function notifyUnauthorizedResponse(response: Response): void {
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('auth:unauthorized'));
+  }
+}
+
 export async function apiClient<T>(
   endpoint: string,
   options: {
@@ -37,6 +43,7 @@ export async function apiClient<T>(
     },
     body: requestBody
   });
+  notifyUnauthorizedResponse(response);
 
   const text = await response.text();
   let json: ApiResponse<T>;

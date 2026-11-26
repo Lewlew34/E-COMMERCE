@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, Clock, ShoppingBag, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { API_BASE_URL, notifyUnauthorizedResponse } from '../../../../api';
 
 interface OrderItem {
   name?: string;
@@ -42,10 +43,6 @@ interface Order {
     city?: string;
   };
 }
-
-const API_BASE_URL =
-  (import.meta as { env?: Record<string, string> }).env?.VITE_API_BASE_URL ||
-  'http://localhost/TechMart/Backend/api';
 
 const resolveUserId = (): number | null => {
   try {
@@ -152,8 +149,10 @@ export const OrderHistoryPage: React.FC = () => {
         }
 
         const res = await fetch(`${API_BASE_URL}/customer/orders.php?action=list${query}`, {
+          credentials: 'include',
           headers,
         });
+        notifyUnauthorizedResponse(res);
         const json = await res.json();
         const apiList = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
 

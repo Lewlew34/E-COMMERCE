@@ -21,6 +21,7 @@ import {
   History
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { useCart } from '../contexts/CartContext';
 import { useWishlist } from '../contexts/WishlistContext';
 import { useAuthModal } from '../contexts/AuthModalContext';
@@ -30,6 +31,7 @@ import { ChatNotificationLink } from '../modules/chat/components/ChatNotificatio
 
 export const CustomerLayout: React.FC = () => {
   const { user, logout, isAdmin, isSeller } = useAuth();
+  const { showToast } = useToast();
   const { totalCount } = useCart();
   const { totalWishlistCount } = useWishlist();
   const { openAuthModal } = useAuthModal();
@@ -64,6 +66,16 @@ export const CustomerLayout: React.FC = () => {
         'Vui lòng đăng nhập hoặc đăng ký tài khoản để truy cập giỏ hàng và tiến hành thanh toán đơn hàng.'
       );
     }
+  };
+
+  const handleLogout = async () => {
+    setShowUserMenu(false);
+    try {
+      await logout();
+    } catch {
+      showToast('Đã thoát khỏi giao diện nhưng chưa thể kết thúc phiên trên máy chủ.', 'error');
+    }
+    navigate('/login');
   };
 
   return (
@@ -265,10 +277,7 @@ export const CustomerLayout: React.FC = () => {
                     <div className="border-t border-slate-100 my-1" />
                     <button
                       type="button"
-                      onClick={() => {
-                        logout();
-                        setShowUserMenu(false);
-                      }}
+                      onClick={() => void handleLogout()}
                       className="w-full text-left flex items-center gap-2 px-4 py-2 hover:bg-red-50 text-red-600 cursor-pointer"
                     >
                       <LogOut className="w-4 h-4" />

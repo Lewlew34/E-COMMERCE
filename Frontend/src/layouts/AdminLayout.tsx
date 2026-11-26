@@ -12,10 +12,12 @@ import {
   Cpu
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../contexts/ToastContext';
 import { DashboardPortalLayout, type NavItemConfig } from './DashboardPortalLayout';
 
 export const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const navItems: NavItemConfig[] = [
@@ -28,8 +30,12 @@ export const AdminLayout: React.FC = () => {
     { name: 'Cài đặt hệ thống', path: '/admin/settings', icon: Settings },
   ];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch {
+      showToast('Đã thoát khỏi giao diện nhưng chưa thể kết thúc phiên trên máy chủ.', 'error');
+    }
     navigate('/login');
   };
 

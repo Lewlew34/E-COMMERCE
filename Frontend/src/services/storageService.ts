@@ -474,10 +474,6 @@ export const sellerApiService = {
     return authApi.registerCustomer(data);
   },
 
-  async logout(): Promise<void> {
-    return authApi.logout();
-  },
-
   async getProducts(): Promise<Product[]> {
     return sellerProductApi.getProducts();
   },

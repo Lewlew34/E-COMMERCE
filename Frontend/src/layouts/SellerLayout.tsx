@@ -10,7 +10,6 @@ import {
   MessageCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { sellerApiService } from '../services/storageService';
 import { useToast } from '../contexts/ToastContext';
 import { DashboardPortalLayout, type NavItemConfig } from './DashboardPortalLayout';
 import { ChatNotificationLink } from '../modules/chat/components/ChatNotificationLink';
@@ -22,11 +21,12 @@ export const SellerLayout: React.FC = () => {
 
   const handleLogout = async () => {
     try {
-      await sellerApiService.logout();
+      await logout();
     } catch (error) {
-      showToast(error instanceof Error ? error.message : 'Không thể kết thúc phiên Seller.', 'error');
+      showToast(error instanceof Error
+        ? `Đã thoát khỏi giao diện nhưng chưa thể kết thúc phiên máy chủ: ${error.message}`
+        : 'Đã thoát khỏi giao diện nhưng chưa thể kết thúc phiên trên máy chủ.', 'error');
     }
-    logout();
     navigate('/login');
   };
 

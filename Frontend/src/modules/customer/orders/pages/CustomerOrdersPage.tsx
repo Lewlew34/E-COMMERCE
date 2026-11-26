@@ -14,7 +14,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react';
-import { customerOrderApi } from '../../../../api';
+import { customerOrderApi, notifyUnauthorizedResponse } from '../../../../api';
 import type { Order, OrderStatus } from '../../../../types/ecommerce.types';
 import { formatCurrencyVN } from '../../../../utils/format';
 import { useToast } from '../../../../contexts/ToastContext';
@@ -436,22 +436,20 @@ export const CustomerOrdersPage: React.FC = () => {
 
   const deleteSingleOrderRequest = async (order: DisplayOrder) => {
     const orderId = Number(order.id);
-    const token = localStorage.getItem('token') || '';
     const headers: Record<string, string> = {
       'Content-Type': 'application/json'
     };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     const res = await fetch(
       `${CUSTOMER_ORDERS_API_BASE}/orders.php?action=delete&id=${encodeURIComponent(String(orderId))}`,
       {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: JSON.stringify({ id: orderId, orderCode: order.orderCode })
       }
     );
+    notifyUnauthorizedResponse(res);
 
     if (res.ok) {
       const json = await res.json().catch(() => null);

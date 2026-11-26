@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
 import { useCart } from '../../../../contexts/CartContext';
 import { useAuth } from '../../../../contexts/AuthContext';
+import { API_BASE_URL, notifyUnauthorizedResponse } from '../../../../api';
 
 interface CheckoutItem {
     variantId?: number;
@@ -33,7 +34,7 @@ declare global {
     }
 }
 
-const API_BASE = 'http://localhost/TechMart/Backend/api';
+const API_BASE = API_BASE_URL;
 const PAYPAL_CLIENT_ID = (import.meta as any)?.env?.VITE_PAYPAL_CLIENT_ID || '';
 
 const LOCATION_DATA: Record<string, string[]> = {
@@ -286,6 +287,7 @@ export function CheckoutPage() {
                     orderCode: orderCtx.orderCode
                 })
             });
+            notifyUnauthorizedResponse(res);
 
             const data = await res.json();
             if (!res.ok || !data?.success) {
@@ -430,6 +432,7 @@ export function CheckoutPage() {
                     paymentMethod: backendPaymentMethod
                 })
             });
+            notifyUnauthorizedResponse(createRes);
 
             const createJson = await createRes.json();
             if (!createRes.ok || createJson?.status !== 'success' || !createJson?.data?.orderCode) {
@@ -484,6 +487,7 @@ export function CheckoutPage() {
                         amount: finalAmount
                     })
                 });
+                notifyUnauthorizedResponse(vnpRes);
 
                 if (!vnpRes.ok) {
                     throw new Error(`VNPay trả về HTTP ${vnpRes.status}`);

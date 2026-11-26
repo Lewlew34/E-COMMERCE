@@ -4,16 +4,15 @@ import { Mail, Lock, ArrowRight, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { sellerApiService } from '../../../services/storageService';
+import { authApi } from '../../../api';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { setAuthenticatedUser } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
-
-  const { loginWithUser } = useAuth();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,28 +23,20 @@ export const LoginPage: React.FC = () => {
 
     setLoading(true);
     try {
-      const databaseUser = await sellerApiService.login(email, password);
-      loginWithUser(databaseUser);
-      showToast(`Đăng nhập thành công! Chào mừng ${databaseUser.name}`, 'success');
+      await sellerApiService.login(email, password);
+      const sessionUser = await authApi.getMe();
+      if (!sessionUser) {
+        throw new Error('Đăng nhập thành công nhưng chưa khôi phục được phiên. Vui lòng kiểm tra kết nối rồi thử lại.');
+      }
+      setAuthenticatedUser(sessionUser);
+      showToast(`Đăng nhập thành công! Chào mừng ${sessionUser.name}`, 'success');
 
-      const roleLower = String(databaseUser.role).toLowerCase();
+      const roleLower = String(sessionUser.role).toLowerCase();
       if (roleLower === 'admin') navigate('/admin/dashboard', { replace: true });
       else if (roleLower === 'staff' || roleLower === 'seller') navigate('/seller/dashboard', { replace: true });
       else navigate('/', { replace: true });
     } catch (error) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const isDemoAccount = ['admin@techmart.vn', 'khachhang@techstore.vn'].includes(normalizedEmail);
-      if (isDemoAccount && password === '123456') {
-        const result = login(email, password);
-        if (result.success && result.user) {
-          showToast(`Đăng nhập demo thành công! Chào mừng ${result.user.name}`, 'success');
-          navigate(String(result.user.role).toLowerCase() === 'admin' ? '/admin/dashboard' : '/', { replace: true });
-          setLoading(false);
-          return;
-        }
-      } else {
-        showToast(error instanceof Error ? error.message : 'Đăng nhập thất bại.', 'error');
-      }
+      showToast(error instanceof Error ? error.message : 'Đăng nhập thất bại.', 'error');
     }
     setLoading(false);
   };
@@ -66,7 +57,7 @@ export const LoginPage: React.FC = () => {
       <form onSubmit={handleLogin} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-            Email hoặc Số điện thoại
+            Email
           </label>
           <div className="relative">
             <input
