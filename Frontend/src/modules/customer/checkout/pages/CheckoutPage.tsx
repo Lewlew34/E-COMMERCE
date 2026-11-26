@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LocationPickerModal, type LocationResult } from '../../../../components/map/LocationPickerModal';
+import { useCart } from '../../../../contexts/CartContext';
+import { useAuth } from '../../../../contexts/AuthContext';
 
 interface CheckoutItem {
     variantId?: number;
@@ -67,26 +69,6 @@ const LOCATION_DATA: Record<string, string[]> = {
 };
 
 const CITY_LIST = Object.keys(LOCATION_DATA);
-
-function resolveVariantId(item: any, fallbackCart: any[], index: number): number | undefined {
-    const candidates = [
-        item?.variantId,
-        item?.variant_id,
-        item?.variant?.id,
-        item?.productVariantId,
-        fallbackCart[index]?.variantId,
-        fallbackCart[index]?.variant_id,
-        fallbackCart[index]?.variant?.id,
-        item?.id
-    ];
-    for (const c of candidates) {
-        const num = Number(c);
-        if (Number.isInteger(num) && num > 0) {
-            return num;
-        }
-    }
-    return undefined;
-}
 
 const cardStyle: React.CSSProperties = {
     background: '#ffffff',
@@ -161,8 +143,14 @@ const getPaymentCardStyle = (active: boolean): React.CSSProperties => ({
 export function CheckoutPage() {
     const navigate = useNavigate();
     const paypalContainerRef = useRef<HTMLDivElement | null>(null);
-
-    const [checkoutItems, setCheckoutItems] = useState<CheckoutItem[]>([]);
+    const { selectedItems, removeSelectedItems } = useCart();
+    const { user } = useAuth();
+    const checkoutItems: CheckoutItem[] = selectedItems.map(item => ({
+        variantId: item.variantId,
+        name: item.product.name,
+        price: item.variant.price,
+        quantity: item.quantity
+    }));
     const [paymentMethod, setPaymentMethod] = useState<'cod' | 'vnpay' | 'paypal'>('cod');
     const [loading, setLoading] = useState(false);
     const [verifyingPaypal, setVerifyingPaypal] = useState(false);
@@ -182,19 +170,8 @@ export function CheckoutPage() {
 
     useEffect(() => {
         try {
-            const currentUserStr = localStorage.getItem('currentUser') ||
-                                   localStorage.getItem('user') ||
-                                   localStorage.getItem('auth_user') ||
-                                   localStorage.getItem('loggedUser');
-
-            if (currentUserStr) {
-                let userData: any = currentUserStr;
-                try {
-                    userData = JSON.parse(currentUserStr);
-                } catch {
-                    userData = { fullName: currentUserStr, name: currentUserStr };
-                }
-
+            if (user) {
+                const userData: any = user;
                 const rawCity = userData.city || userData.province || 'TP. Hồ Chí Minh';
                 const resolvedCity = LOCATION_DATA[rawCity] ? rawCity : 'TP. Hồ Chí Minh';
                 const availableDistricts = LOCATION_DATA[resolvedCity];
@@ -217,34 +194,10 @@ export function CheckoutPage() {
                 }));
             }
 
-            const storedItemsStr = localStorage.getItem('checkoutItems');
-            const rawItems = storedItemsStr ? JSON.parse(storedItemsStr) : [];
-            const fallbackCartStr = localStorage.getItem('cart') ||
-                                    localStorage.getItem('cartItems') ||
-                                    localStorage.getItem('cart_items') || '[]';
-            let fallbackCart: any[] = [];
-            try {
-                const parsedCart = JSON.parse(fallbackCartStr);
-                fallbackCart = Array.isArray(parsedCart) ? parsedCart : (parsedCart?.items || []);
-            } catch {
-                fallbackCart = [];
-            }
-
-            const formattedItems: CheckoutItem[] = Array.isArray(rawItems)
-                ? rawItems.map((item: any, idx: number) => ({
-                    variantId: resolveVariantId(item, fallbackCart, idx),
-                    name: item.name || item.product?.name || 'Sản phẩm công nghệ',
-                    price: Number(item.price !== undefined ? item.price : (item.variant?.price || 0)),
-                    quantity: Number(item.quantity || 1)
-                }))
-                : [];
-
-            setCheckoutItems(formattedItems);
         } catch (error) {
             console.error('Lỗi đọc dữ liệu:', error);
-            setCheckoutItems([]);
         }
-    }, []);
+    }, [user]);
 
     const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const onlyDigits = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -314,12 +267,7 @@ export function CheckoutPage() {
         0
     );
 
-    const clearCartStorage = () => {
-        localStorage.removeItem('checkoutItems');
-        localStorage.removeItem('cart');
-        localStorage.removeItem('cartItems');
-        localStorage.removeItem('cart_items');
-    };
+    const removePurchasedItems = () => removeSelectedItems(checkoutItems.flatMap(item => item.variantId ? [item.variantId] : []));
 
     const saveLocalOrderSnapshot = (orderRecord: any) => {
         try {
@@ -380,7 +328,7 @@ export function CheckoutPage() {
             saveLocalOrderSnapshot(paidSnapshot);
             localStorage.setItem('pendingPayPalOrder', JSON.stringify(paidSnapshot));
 
-            clearCartStorage();
+            removePurchasedItems();
             setPendingPaypalOrder(null);
             navigate(
                 `/order-success?payment=paypal&status=success&orderCode=${encodeURIComponent(orderCtx.orderCode)}&txnId=${encodeURIComponent(data.captureId || paypalOrderId)}`
@@ -570,7 +518,6 @@ export function CheckoutPage() {
 
                 const vnpResult = await vnpRes.json();
                 if (vnpResult.code === '00' && typeof vnpResult.data === 'string') {
-                    clearCartStorage();
                     window.location.href = vnpResult.data;
                     return;
                 }
@@ -590,7 +537,7 @@ export function CheckoutPage() {
                 return;
             }
 
-            clearCartStorage();
+            removePurchasedItems();
             navigate(`/order-success?vnp_ResponseCode=00&vnp_TxnRef=${encodeURIComponent(orderCode)}`);
         } catch (error: any) {
             console.error('Lỗi đặt hàng:', error);

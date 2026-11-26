@@ -170,9 +170,7 @@ export const productService = {
 // ==========================================
 export const cartService = {
   getItems(): CartItem[] {
-    const stored = getStored<Array<{ id: number; variantId: number; quantity: number }>>(STORAGE_KEYS.CART, [
-      { id: 1, variantId: 101, quantity: 1 }
-    ]);
+    const stored = getStored<Array<{ id: number; variantId: number; quantity: number }>>(STORAGE_KEYS.CART, []);
 
     const items: CartItem[] = [];
     for (const item of stored) {

@@ -90,6 +90,20 @@ if ($orderCode !== '') {
                     'txn_id' => $transactionNo,
                     'order_id' => $orderId,
                 ]);
+
+                $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
+                $cartStmt->execute(['user_id' => $userId]);
+                $cartId = $cartStmt->fetchColumn();
+                if ($cartId !== false) {
+                    $orderVariants = $pdo->prepare('SELECT DISTINCT variant_id FROM order_items WHERE order_id = :order_id');
+                    $orderVariants->execute(['order_id' => $orderId]);
+                    $variantIds = array_map('intval', $orderVariants->fetchAll(PDO::FETCH_COLUMN));
+                    if ($variantIds) {
+                        $marks = implode(',', array_fill(0, count($variantIds), '?'));
+                        $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)")
+                            ->execute([(int) $cartId, ...$variantIds]);
+                    }
+                }
             } elseif ($responseCode !== '00') {
                 $shouldRestoreStock = ($currentOrderStatus === 'pending' && $currentPaymentStatus !== 'failed');
                 $nextOrderStatus = ($currentOrderStatus === 'pending') ? 'cancelled' : $currentOrderStatus;

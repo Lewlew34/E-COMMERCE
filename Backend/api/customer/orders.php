@@ -256,6 +256,19 @@ if ($action === 'create' && $method === 'POST') {
         'amount' => $subtotal + $shippingFee,
     ]);
 
+    // COD is confirmed as an order immediately; online payment carts are cleared only after gateway confirmation.
+    if ($paymentMethod === 'COD') {
+        $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
+        $cartStmt->execute(['user_id' => $userId]);
+        $cartId = $cartStmt->fetchColumn();
+        if ($cartId !== false) {
+            $variantIds = array_values(array_unique(array_column($lines, 'variant_id')));
+            $marks = implode(',', array_fill(0, count($variantIds), '?'));
+            $deleteCartItems = $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)");
+            $deleteCartItems->execute([(int) $cartId, ...$variantIds]);
+        }
+    }
+
     $pdo->commit();
 
     json_response([

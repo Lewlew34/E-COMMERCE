@@ -273,6 +273,20 @@ try {
         'user_id' => $customer['id'],
     ]);
 
+    $cartStmt = $pdo->prepare('SELECT id FROM carts WHERE user_id = :user_id LIMIT 1 FOR UPDATE');
+    $cartStmt->execute(['user_id' => $customer['id']]);
+    $cartId = $cartStmt->fetchColumn();
+    if ($cartId !== false) {
+        $orderVariants = $pdo->prepare('SELECT DISTINCT variant_id FROM order_items WHERE order_id = :order_id');
+        $orderVariants->execute(['order_id' => $dbOrderId]);
+        $variantIds = array_map('intval', $orderVariants->fetchAll(PDO::FETCH_COLUMN));
+        if ($variantIds) {
+            $marks = implode(',', array_fill(0, count($variantIds), '?'));
+            $pdo->prepare("DELETE FROM cart_items WHERE cart_id = ? AND variant_id IN ($marks)")
+                ->execute([(int) $cartId, ...$variantIds]);
+        }
+    }
+
     try {
         $payCheck = $pdo->prepare('SELECT id FROM payments WHERE order_id = :order_id ORDER BY id DESC LIMIT 1');
         $payCheck->execute(['order_id' => $dbOrderId]);
